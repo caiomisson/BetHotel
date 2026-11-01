@@ -52,22 +52,34 @@ export function Avatar({ config, pose = "stand", frame = 0, facing = "right", si
 
   // --- Cabelo
   if (c.hair !== "bald") {
-    add(4, 2, 8, 2, hair);
-    add(4, 4, 2, 3, hair);
-    if (c.hair === "spiky") {
-      add(5, 1, 1, 1, hair);
-      add(7, 0, 1, 2, hair);
-      add(9, 1, 1, 1, hair);
-      add(11, 1, 1, 1, hair);
+    {
+      add(4, 2, 8, 2, hair);
+      add(4, 4, 2, 3, hair);
+      if (c.hair === "spiky") {
+        add(5, 1, 1, 1, hair);
+        add(7, 0, 1, 2, hair);
+        add(9, 1, 1, 1, hair);
+        add(11, 1, 1, 1, hair);
+      }
+      if (c.hair === "long") add(4, 4, 1, 6, hair);
     }
-    if (c.hair === "long") add(4, 4, 1, 6, hair);
+  }
+
+  // --- Óculos de sol
+  if (c.glasses === "sunglasses") {
+    add(8, 6, 5, 2, "#15161c");
+    add(10, 6, 1, 1, "#15161c");
+    add(9, 6, 1, 1, "#4a6a9a");
+    add(12, 6, 1, 1, "#4a6a9a");
+    add(5, 6, 3, 1, "#15161c");
   }
 
   // --- Chapéus premium
+  const capColor = c.hatColor ?? "#d24b3e";
   if (c.hat === "cap") {
-    add(4, 1, 8, 3, "#d24b3e");
-    add(11, 3, 4, 1, shade("#d24b3e", -0.25));
-    add(6, 1, 3, 1, shade("#d24b3e", 0.25));
+    add(4, 1, 8, 3, capColor);
+    add(11, 3, 4, 1, shade(capColor, -0.25));
+    add(6, 1, 3, 1, shade(capColor, 0.25));
   }
   if (c.hat === "crown") {
     add(5, 0, 7, 3, "#f2b84b");
@@ -79,15 +91,9 @@ export function Avatar({ config, pose = "stand", frame = 0, facing = "right", si
 
   // --- Pescoço e tronco
   add(7, 11, 3, 1, skinDark);
-  add(4, 12, 8, 8, c.shirt === "tank" ? shirt : shirt);
+  add(4, 12, 8, 8, shirt);
   add(4, 12, 1, 8, shirtDark);
 
-  if (c.shirt === "jacket") {
-    add(7, 12, 2, 8, "#e9e4d8");
-    add(8, 12, 1, 8, shirtDark);
-    add(5, 12, 2, 1, shade(shirt, 0.25));
-    add(9, 12, 2, 1, shade(shirt, 0.25));
-  }
   if (c.shirt === "hoodie") {
     add(7, 12, 1, 3, "#f3e9d2");
     add(9, 12, 1, 3, "#f3e9d2");
@@ -99,7 +105,7 @@ export function Avatar({ config, pose = "stand", frame = 0, facing = "right", si
   }
 
   // --- Braços (trás e frente) com balanço na caminhada
-  const sleeveFull = c.shirt === "jacket" || c.shirt === "hoodie";
+  const sleeveFull = c.shirt === "hoodie";
   const sleeveLen = sleeveFull ? 7 : c.shirt === "tshirt" ? 3 : 0;
   const arm = (x: number, offset: number, back: boolean) => {
     const base = 12 + offset;
@@ -145,7 +151,7 @@ export function Avatar({ config, pose = "stand", frame = 0, facing = "right", si
     <svg
       width={size / 2}
       height={size}
-      viewBox="0 -1 16 33"
+      viewBox="0 -2 16 34"
       className="crisp block"
       style={{ transform: facing === "left" ? "scaleX(-1)" : undefined }}
       aria-hidden

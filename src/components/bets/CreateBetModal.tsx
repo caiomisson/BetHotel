@@ -6,12 +6,21 @@ import { useHotel } from "@/components/hotel/HotelProvider";
 import { Modal } from "@/components/ui/Modal";
 import { errorMessage, formatBRL } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
-import type { BetType } from "@/lib/types";
+import { Plane, Soup, Swords, Trophy } from "lucide-react";
+import type { BetCategory, BetType } from "@/lib/types";
 import { GuestPicker } from "./GuestPicker";
 
 type ValueMode = "money" | "prize";
 
+const CATEGORIES: { key: BetCategory; type: BetType; label: string; icon: typeof Swords }[] = [
+  { key: "aposta", type: "bet", label: "Aposta 1v1", icon: Swords },
+  { key: "bolao", type: "bet", label: "Bolão", icon: Trophy },
+  { key: "racha", type: "expense", label: "Racha", icon: Soup },
+  { key: "viagem", type: "expense", label: "Viagem", icon: Plane },
+];
+
 const INITIAL = {
+  category: "aposta" as BetCategory,
   type: "bet" as BetType,
   title: "",
   description: "",
@@ -57,6 +66,7 @@ export function CreateBetModal({ open, onClose }: { open: boolean; onClose: () =
     if (money && (!amount || amount <= 0)) return setError("Informe um valor válido em R$.");
     if (!money && !f.prize.trim()) return setError("Descreva a prenda.");
     if (f.participants.length === 0) return setError(isExpense ? "Escolha com quem dividir." : "Escolha pelo menos um oponente.");
+    if (f.category === "aposta" && f.participants.length > 1) return setError("Aposta 1v1 é contra uma pessoa só. Para grupo, use Bolão.");
     if (f.witness[0] && f.participants.includes(f.witness[0])) return setError("A testemunha não pode participar.");
 
     setSaving(true);
@@ -68,6 +78,7 @@ export function CreateBetModal({ open, onClose }: { open: boolean; onClose: () =
       p_prize_text: money ? null : f.prize,
       p_witness_id: isExpense ? null : f.witness[0] ?? null,
       p_participants: f.participants.map((id) => ({ user_id: id, share_amount: isExpense ? share : null })),
+      p_category: f.category,
     });
     setSaving(false);
     if (error) return setError(errorMessage(error));
@@ -77,17 +88,18 @@ export function CreateBetModal({ open, onClose }: { open: boolean; onClose: () =
   }
 
   return (
-    <Modal open={open} onClose={close} title="🍺 Bar do Hotel — Nova aposta">
+    <Modal open={open} onClose={close} title="Novo registro">
       <form onSubmit={submit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-2">
-          {(["bet", "expense"] as BetType[]).map((t) => (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {CATEGORIES.map(({ key, type, label, icon: Icon }) => (
             <button
-              key={t}
+              key={key}
               type="button"
-              onClick={() => update("type", t)}
-              className={`pixel-btn ${f.type === t ? "pixel-btn-gold" : ""}`}
+              onClick={() => setF((s) => ({ ...s, category: key, type, participants: key === "aposta" ? s.participants.slice(0, 1) : s.participants }))}
+              className={`pixel-btn flex-col gap-1 py-2.5 text-xs ${f.category === key ? "pixel-btn-gold" : ""}`}
             >
-              {t === "bet" ? "🎲 Aposta" : "🧾 Dividir conta"}
+              <Icon size={16} />
+              {label}
             </button>
           ))}
         </div>
@@ -155,10 +167,10 @@ export function CreateBetModal({ open, onClose }: { open: boolean; onClose: () =
         )}
 
         <div>
-          <label className="pixel-label">{isExpense ? "Dividir com" : "Oponente(s)"}</label>
-          <GuestPicker guests={others} selected={f.participants} onChange={(ids) => update("participants", ids)} />
+          <label className="pixel-label">{isExpense ? "Dividir com" : f.category === "aposta" ? "Oponente" : "Participantes do bolão"}</label>
+          <GuestPicker guests={others} selected={f.participants} onChange={(ids) => update("participants", ids)} single={f.category === "aposta"} />
           {!isExpense && f.participants.length > 1 && (
-            <p className="mt-1 text-xs text-cream/60">Aposta em grupo: um vencedor leva a parte de cada perdedor.</p>
+            <p className="mt-1 text-xs text-cream/60">Bolão: quem vencer leva a parte de cada perdedor.</p>
           )}
         </div>
 

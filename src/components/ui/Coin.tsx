@@ -12,7 +12,7 @@ export function Coin({ size = 14 }: { size?: number }) {
 
 export function CoinAmount({ value, className = "" }: { value: number; className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-1 font-pixel text-[11px] text-gold ${className}`}>
+    <span className={`inline-flex items-center gap-1 font-pixel text-sm text-gold ${className}`}>
       <Coin /> {value}
     </span>
   );

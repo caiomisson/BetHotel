@@ -27,7 +27,7 @@ export function StatsModal({ open, onClose, userId, nickname }: StatsModalProps)
   }, [open, userId]);
 
   return (
-    <Modal open={open} onClose={onClose} title={`🏆 Dashboard de @${nickname}`}>
+    <Modal open={open} onClose={onClose} title={`Carreira de @${nickname}`}>
       {error && <p className="text-coral">{error}</p>}
       {!stats && !error && <p className="text-cream/60">Carregando estatísticas…</p>}
       {stats && (
@@ -84,7 +84,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   return (
     <div className="rounded border-2 border-line bg-night/50 p-2 text-center">
       <div className="text-[10px] uppercase tracking-wide text-cream/60">{label}</div>
-      <div className="font-pixel text-[11px] text-gold">{value}</div>
+      <div className="font-pixel text-base text-gold">{value}</div>
       {hint && <div className="text-[10px] text-cream/50">{hint}</div>}
     </div>
   );

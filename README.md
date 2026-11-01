@@ -18,12 +18,12 @@ npm run dev                  # http://localhost:3000
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (plano Free).
 2. **Database → Extensions:** ative `pg_cron` e `pg_net` (o script também tenta ativá-las).
-3. **SQL Editor:** cole e rode todo o arquivo `supabase/migrations/0001_bethotel_schema.sql`.
+3. **SQL Editor:** cole e rode o arquivo `supabase/migrations/0001_bethotel_schema.sql` depois o `0002_catalogo_reformas.sql` e por último o `0003_quartos_ranking_categorias.sql` (nessa ordem).
    Ele cria tabelas, RLS, funções, bucket `proofs` (4 MB, privado), Realtime, jobs do pg_cron e a loja inicial.
 4. **Segredos para apagar comprovantes vencidos** (SQL Editor, troque os valores):
    ```sql
    select vault.create_secret('https://SEU-PROJETO.supabase.co', 'project_url');
-   select vault.create_secret('SUA_SERVICE_ROLE_KEY', 'service_role_key');
+   select vault.create_secret('sb_secret_SUA_CHAVE_SECRETA', 'service_role_key');
    ```
    A service role key fica só dentro do banco (Vault) — nunca no front-end nem na Vercel.
 5. **Authentication → URL Configuration:** adicione `http://localhost:3000/auth/callback` e `https://SEU-APP.vercel.app/auth/callback` em *Redirect URLs*.
@@ -64,6 +64,34 @@ npm run dev                  # http://localhost:3000
 - Colunas extras: `rooms.room_type`, `bets_expenses.prize_text`.
 
 ---
+
+## 4.1 Atualização 0002 — Kitnet humilde, reformas e catálogo novo
+
+| O que mudou | Onde |
+|---|---|
+| Quarto novo vem com cama, cadeira, tapete pequeno e planta já posicionados | `starter_furniture()` + `handle_new_user` |
+| Parede descascada e lâmpada velha piscando até reformar | `rooms.decor`, `RoomWalls.tsx`, `RoomLight.tsx` |
+| Reformas: Pintura Simples (5), Texturizada (10), LED (10) — compra uma vez, troca cor/textura à vontade | `buy_item`, `set_decor` |
+| Loja em 5 seções com 21 itens | `shop_items.section` |
+| Móveis grandes (sofá, estante, mesa 2×1; tapete 2×2) com botão girar | `move_furniture(uid, x, y, rot)` + `furniture_tiles` |
+| Óculos de sol, boné com cor, cabelos estilizados (moicano, cacheado, topete) | `Avatar.tsx`, trigger `profiles_before_update` |
+| Estante de Troféus (100) também abre o Dashboard; quadro de cortiça fixo continua na parede | `sprites.tsx` (`opensStats`) |
+| Itens antigos (Sofá Clássico, TV de Tubo, Fliperama, Jaqueta) apagados, inclusive dos inventários | migração 0002 |
+
+## 4.2 Atualização 0003 — layout dos mockups
+
+| O que mudou | Onde |
+|---|---|
+| 5 abas: Meu Quarto, Loja do Hotel, Diretório, Apostas & Despesas, Central de Avisos | `TopBar.tsx`, rotas em `src/app/(hotel)` |
+| Kitnet 4x4 inicial; Studio 6x6 (50) e Loft 8x8 (150) em Meu Quarto → Inventário | `upgrade_room`, `room_size` |
+| +10 Hotel Coins por quitação confirmada, teto 100/semana (validação dupla mantida) | `confirm_payment` |
+| Categorias Aposta 1v1, Bolão, Racha, Viagem | `bets_expenses.category` |
+| Número do quarto e frase no perfil | `profiles.room_number`, `profiles.bio` |
+| Status online/ausente/offline | `PresenceProvider.tsx` (Supabase Realtime Presence) |
+| Ranking por vitórias e aviso de Top 3 | `get_ranking`, `declare_winner` |
+| Aviso de baratas/dedetização, moedas recebidas | `refresh_cleanliness`, `confirm_payment` |
+| Comprovante em PNG, JPG, WEBP ou PDF (até 4 MB) | bucket `proofs` |
+| Animações | Framer Motion |
 
 ## 5. Estrutura
 

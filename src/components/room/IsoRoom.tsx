@@ -1,21 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  depth,
-  findPath,
-  gridToScreen,
-  nearestFreeNeighbor,
-  roomGeometry,
-  tileCenter,
-  tileKey,
-  WALL_H,
-  type Point,
-} from "@/lib/iso";
-import type { AvatarConfig } from "@/lib/types";
+import { depth, findPath, gridToScreen, roomGeometry, tileCenter, tileKey, type Point } from "@/lib/iso";
+import type { AvatarConfig, RoomDecor } from "@/lib/types";
 import { Avatar, type AvatarPose } from "./Avatar";
 import { CreepyLayer, DirtLayer, dirtLevel } from "./DirtOverlay";
-import { FURNITURE_SPRITES } from "./sprites";
+import { RoomLight } from "./RoomLight";
+import { RoomWalls } from "./RoomWalls";
+import { footprint, FURNITURE_SPRITES, FurnitureSvg, spriteBox } from "./sprites";
 
 export interface PlacedFurniture {
   uid: string;
@@ -23,6 +15,7 @@ export interface PlacedFurniture {
   name: string;
   x: number;
   y: number;
+  rot: 0 | 1;
 }
 
 export interface RoomAvatar {
@@ -34,12 +27,16 @@ interface IsoRoomProps {
   cols: number;
   rows: number;
   cleanliness: number;
+  decor: RoomDecor;
+  roomNumber: number | null;
+  /** Vitórias do dono: a Estante de Troféus mostra um troféu por vitória. */
+  trophies: number;
   furniture: PlacedFurniture[];
   /** Avatar controlado pelo usuário logado. */
   player: RoomAvatar;
   /** Dono do quarto, exibido parado quando alguém está visitando. */
   host?: RoomAvatar;
-  onTrophyClick: () => void;
+  onStatsClick: () => void;
   editMode?: boolean;
   selectedUid?: string | null;
   onEditTileClick?: (x: number, y: number) => void;
@@ -47,15 +44,39 @@ interface IsoRoomProps {
 }
 
 const STEP_MS = 230;
+const DIRS: Point[] = [
+  { x: 1, y: 0 },
+  { x: -1, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: -1 },
+];
+
+/** Pisos ocupados por um móvel posicionado. */
+export function tilesOf(f: { asset: string; x: number; y: number; rot: 0 | 1 }): Point[] {
+  const def = FURNITURE_SPRITES[f.asset];
+  if (!def) return [];
+  const { w, d } = footprint(def, f.rot);
+  const out: Point[] = [];
+  for (let i = 0; i < w; i++) for (let j = 0; j < d; j++) out.push({ x: f.x + i, y: f.y + j });
+  return out;
+}
+
+interface Seat {
+  furniture: PlacedFurniture;
+  tile: Point;
+}
 
 export function IsoRoom({
   cols,
   rows,
   cleanliness,
+  decor,
+  roomNumber,
+  trophies,
   furniture,
   player,
   host,
-  onTrophyClick,
+  onStatsClick,
   editMode,
   selectedUid,
   onEditTileClick,
@@ -64,10 +85,10 @@ export function IsoRoom({
   const geom = useMemo(() => roomGeometry(cols, rows), [cols, rows]);
   const level = dirtLevel(cleanliness);
 
-  // ---- Ocupação do grid
+  // ---- Ocupação do grid (tapetes não bloqueiam)
   const blocked = useMemo(() => {
     const s = new Set<string>();
-    furniture.forEach((f) => FURNITURE_SPRITES[f.asset]?.blocking && s.add(tileKey(f)));
+    furniture.forEach((f) => FURNITURE_SPRITES[f.asset]?.layer === "solid" && tilesOf(f).forEach((t) => s.add(tileKey(t))));
     return s;
   }, [furniture]);
 
@@ -84,44 +105,51 @@ export function IsoRoom({
   const [path, setPath] = useState<Point[]>([]);
   const [facing, setFacing] = useState<"left" | "right">("left");
   const [frame, setFrame] = useState<0 | 1>(0);
-  const [seat, setSeat] = useState<PlacedFurniture | null>(null);
-  const pendingSeat = useRef<PlacedFurniture | null>(null);
+  const [seat, setSeat] = useState<Seat | null>(null);
+  const pendingTarget = useRef<PlacedFurniture | null>(null);
 
-  // Se um móvel for colocado em cima do avatar, reposiciona.
   useEffect(() => {
     if (!seat && blocked.has(tileKey(pos)) && freeTiles[0]) setPos(freeTiles[0]);
   }, [blocked, freeTiles, pos, seat]);
+
+  /** Chegou ao lado do móvel: senta, abre estatísticas ou só olha para ele. */
+  const arriveAt = useCallback(
+    (f: PlacedFurniture, from: Point) => {
+      const def = FURNITURE_SPRITES[f.asset];
+      const tiles = tilesOf(f);
+      const touching = tiles.find((t) => Math.abs(t.x - from.x) + Math.abs(t.y - from.y) === 1) ?? tiles[0];
+      if (def?.sittable) {
+        setSeat({ furniture: f, tile: touching });
+        setFacing(f.rot ? "right" : "left");
+        return;
+      }
+      setFacing(touching.x - from.x > 0 || touching.y - from.y < 0 ? "right" : "left");
+      if (def?.opensStats) onStatsClick();
+    },
+    [onStatsClick],
+  );
 
   // ---- Loop de caminhada
   useEffect(() => {
     if (path.length === 0) return;
     const t = setTimeout(() => {
       const [next, ...rest] = path;
-      const dx = next.x - pos.x;
-      const dy = next.y - pos.y;
-      setFacing(dx > 0 || dy < 0 ? "right" : "left");
+      setFacing(next.x - pos.x > 0 || next.y - pos.y < 0 ? "right" : "left");
       setPos(next);
       setFrame((f) => (f === 0 ? 1 : 0));
       setPath(rest);
-      if (rest.length === 0 && pendingSeat.current) {
-        const target = pendingSeat.current;
-        pendingSeat.current = null;
-        if (FURNITURE_SPRITES[target.asset]?.sittable) {
-          setTimeout(() => {
-            setSeat(target);
-            setFacing("left");
-          }, STEP_MS);
-        } else {
-          setFacing(target.x - next.x > 0 || target.y - next.y < 0 ? "right" : "left");
-        }
+      if (rest.length === 0 && pendingTarget.current) {
+        const target = pendingTarget.current;
+        pendingTarget.current = null;
+        setTimeout(() => arriveAt(target, next), STEP_MS);
       }
     }, STEP_MS);
     return () => clearTimeout(t);
-  }, [path, pos]);
+  }, [path, pos, arriveAt]);
 
   const walkTo = useCallback(
     (goal: Point) => {
-      pendingSeat.current = null;
+      pendingTarget.current = null;
       setSeat(null);
       const p = findPath(pos, goal, cols, rows, blocked);
       if (p) setPath(p);
@@ -132,130 +160,66 @@ export function IsoRoom({
   const goToFurniture = useCallback(
     (f: PlacedFurniture) => {
       setSeat(null);
-      const route = nearestFreeNeighbor(pos, f, cols, rows, blocked);
+      const start = pos;
+      const tiles = new Set(tilesOf(f).map(tileKey));
+      // vizinho livre mais próximo de qualquer piso do móvel
+      let best: Point[] | null = null;
+      tilesOf(f).forEach((t) =>
+        DIRS.forEach((d) => {
+          const n = { x: t.x + d.x, y: t.y + d.y };
+          if (n.x < 0 || n.y < 0 || n.x >= cols || n.y >= rows) return;
+          if (tiles.has(tileKey(n)) || blocked.has(tileKey(n))) return;
+          const p = findPath(start, n, cols, rows, blocked);
+          if (p && (!best || p.length < best.length)) best = p;
+        }),
+      );
+      const route = best as Point[] | null;
       if (!route) return;
-      pendingSeat.current = f;
-      if (route.path.length === 0) {
-        // já está ao lado
+      if (route.length === 0) {
         setPath([]);
-        if (FURNITURE_SPRITES[f.asset]?.sittable) {
-          setSeat(f);
-          setFacing("left");
-        }
-        pendingSeat.current = null;
+        arriveAt(f, start);
       } else {
-        setPath(route.path);
+        pendingTarget.current = f;
+        setPath(route);
       }
     },
-    [pos, cols, rows, blocked],
+    [pos, cols, rows, blocked, arriveAt],
   );
 
   const onTile = (x: number, y: number) => (editMode ? onEditTileClick?.(x, y) : walkTo({ x, y }));
   const onFurniture = (f: PlacedFurniture) => {
     if (editMode) return onEditFurnitureClick?.(f.uid);
-    if (!FURNITURE_SPRITES[f.asset]?.blocking) return walkTo(f); // tapete: pisa em cima
+    if (FURNITURE_SPRITES[f.asset]?.layer === "floor") return walkTo({ x: f.x, y: f.y });
     goToFurniture(f);
   };
 
-  // ---- Geometria das paredes
-  const top = gridToScreen(geom, 0, 0);
-  const rightFloor = gridToScreen(geom, cols, 0);
-  const leftFloor = gridToScreen(geom, 0, rows);
-  const leftWallPt = (gy: number, z: number) => {
-    const p = gridToScreen(geom, 0, gy);
-    return `${p.x},${p.y - z}`;
-  };
-  const rightWallPt = (gx: number, z: number) => {
-    const p = gridToScreen(geom, gx, 0);
-    return `${p.x},${p.y - z}`;
-  };
-  const board = { g0: rows * 0.22, g1: rows * 0.22 + 1.6, z0: 42, z1: 96 };
-  const win = { g0: cols * 0.35, g1: cols * 0.35 + 1.6, z0: 46, z1: 100 };
-
+  // ---- Avatar
   const avatarPose: AvatarPose = seat ? "sit" : path.length ? "walk" : "stand";
-  const avatarTile = seat ?? pos;
-  const avatarCenter = tileCenter(geom, avatarTile.x, avatarTile.y);
-  const seatLift = seat ? FURNITURE_SPRITES[seat.asset]?.seatZ ?? 12 : 0;
+  const avatarTile = seat?.tile ?? pos;
+  const seatLift = seat ? FURNITURE_SPRITES[seat.furniture.asset]?.seatZ ?? 12 : 0;
+
+  // ---- Laje do piso
+  const bottom = gridToScreen(geom, cols, rows);
+  const leftFloor = gridToScreen(geom, 0, rows);
+  const rightFloor = gridToScreen(geom, cols, 0);
+  const SLAB = 10;
 
   return (
     <div className="relative select-none" style={{ width: geom.width, height: geom.height }}>
-      {/* Paredes, piso, sujeira e quadro de troféus */}
       <svg width={geom.width} height={geom.height} className="absolute inset-0 overflow-visible" style={{ zIndex: 0 }}>
-        {/* parede esquerda */}
+        <RoomWalls geom={geom} decor={decor} roomNumber={roomNumber} onStatsClick={onStatsClick} />
+
+        {/* laje (espessura do piso) */}
         <polygon
-          points={`${top.x},${top.y - WALL_H} ${top.x},${top.y} ${leftFloor.x},${leftFloor.y} ${leftFloor.x},${leftFloor.y - WALL_H}`}
-          fill="#d9cfb6"
-          stroke="#8f8468"
-          strokeWidth={1}
+          points={`${leftFloor.x},${leftFloor.y} ${bottom.x},${bottom.y} ${bottom.x},${bottom.y + SLAB} ${leftFloor.x},${leftFloor.y + SLAB}`}
+          fill="#4a3520"
         />
-        {/* parede direita */}
         <polygon
-          points={`${top.x},${top.y - WALL_H} ${rightFloor.x},${rightFloor.y - WALL_H} ${rightFloor.x},${rightFloor.y} ${top.x},${top.y}`}
-          fill="#bfb398"
-          stroke="#8f8468"
-          strokeWidth={1}
-        />
-        {/* rodapés */}
-        <polygon points={`${leftWallPt(0, 8)} ${leftWallPt(rows, 8)} ${leftWallPt(rows, 0)} ${leftWallPt(0, 0)}`} fill="#8f6a44" />
-        <polygon points={`${rightWallPt(0, 8)} ${rightWallPt(cols, 8)} ${rightWallPt(cols, 0)} ${rightWallPt(0, 0)}`} fill="#7a5a39" />
-        {/* topo das paredes */}
-        <polyline
-          points={`${leftFloor.x},${leftFloor.y - WALL_H} ${top.x},${top.y - WALL_H} ${rightFloor.x},${rightFloor.y - WALL_H}`}
-          fill="none"
-          stroke="#efe6cf"
-          strokeWidth={4}
+          points={`${bottom.x},${bottom.y} ${rightFloor.x},${rightFloor.y} ${rightFloor.x},${rightFloor.y + SLAB} ${bottom.x},${bottom.y + SLAB}`}
+          fill="#3a2a19"
         />
 
-        {/* janela */}
-        <polygon
-          points={`${rightWallPt(win.g0, win.z1)} ${rightWallPt(win.g1, win.z1)} ${rightWallPt(win.g1, win.z0)} ${rightWallPt(win.g0, win.z0)}`}
-          fill="#7cc4f0"
-          stroke="#f3e9d2"
-          strokeWidth={4}
-        />
-        <line
-          x1={Number(rightWallPt((win.g0 + win.g1) / 2, win.z1).split(",")[0])}
-          y1={Number(rightWallPt((win.g0 + win.g1) / 2, win.z1).split(",")[1])}
-          x2={Number(rightWallPt((win.g0 + win.g1) / 2, win.z0).split(",")[0])}
-          y2={Number(rightWallPt((win.g0 + win.g1) / 2, win.z0).split(",")[1])}
-          stroke="#f3e9d2"
-          strokeWidth={3}
-        />
-
-        {/* Quadro de Troféus / Estatísticas */}
-        <g
-          role="button"
-          tabIndex={0}
-          aria-label="Abrir quadro de troféus e estatísticas"
-          className="cursor-pointer outline-none [&:hover>polygon:first-child]:fill-[#7a4f2a] [&:focus-visible>polygon:first-child]:stroke-gold"
-          onClick={onTrophyClick}
-          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onTrophyClick()}
-        >
-          <polygon
-            points={`${leftWallPt(board.g0, board.z1)} ${leftWallPt(board.g1, board.z1)} ${leftWallPt(board.g1, board.z0)} ${leftWallPt(board.g0, board.z0)}`}
-            fill="#5e3c20"
-            stroke="#f2b84b"
-            strokeWidth={3}
-          />
-          {(() => {
-            const c = gridToScreen(geom, 0, (board.g0 + board.g1) / 2);
-            const cy = c.y - (board.z0 + board.z1) / 2;
-            return (
-              <g transform={`translate(${c.x} ${cy}) skewY(-26.565)`}>
-                <rect x={-7} y={-14} width={14} height={10} fill="#f2b84b" />
-                <rect x={-11} y={-13} width={4} height={6} fill="#f2b84b" />
-                <rect x={7} y={-13} width={4} height={6} fill="#f2b84b" />
-                <rect x={-2} y={-4} width={4} height={6} fill="#c98f2a" />
-                <rect x={-6} y={2} width={12} height={3} fill="#c98f2a" />
-                <text x={0} y={16} textAnchor="middle" fontSize={7} fill="#f3e9d2" fontFamily="var(--font-pixel)">
-                  STATS
-                </text>
-              </g>
-            );
-          })()}
-        </g>
-
-        {/* piso clicável */}
+        {/* piso xadrez clicável */}
         {Array.from({ length: rows }).map((_, y) =>
           Array.from({ length: cols }).map((__, x) => {
             const a = gridToScreen(geom, x, y);
@@ -267,15 +231,22 @@ export function IsoRoom({
               <polygon
                 key={`${x}-${y}`}
                 points={`${a.x},${a.y} ${b.x},${b.y} ${c.x},${c.y} ${d.x},${d.y}`}
-                fill={even ? "#cbb48a" : "#bea47a"}
-                stroke="#a08659"
+                fill={even ? "#9c774c" : "#8a6741"}
+                stroke="#6e5232"
                 strokeWidth={0.8}
-                className={`cursor-pointer transition-[fill] ${editMode ? "hover:fill-[#9ed9b8]" : "hover:fill-[#e2cfa6]"}`}
+                className={`cursor-pointer transition-[fill] ${editMode ? "hover:fill-[#9ed9b8]" : "hover:fill-[#b38c5c]"}`}
                 onClick={() => onTile(x, y)}
               />
             );
           }),
         )}
+        {/* sombra da parede sobre o piso */}
+        <polygon
+          points={`${gridToScreen(geom, 0, 0).x},${gridToScreen(geom, 0, 0).y} ${rightFloor.x},${rightFloor.y} ${gridToScreen(geom, cols, 0.35).x},${gridToScreen(geom, cols, 0.35).y} ${gridToScreen(geom, 0.35, 0.35).x},${gridToScreen(geom, 0.35, 0.35).y} ${gridToScreen(geom, 0.35, rows).x},${gridToScreen(geom, 0.35, rows).y} ${leftFloor.x},${leftFloor.y}`}
+          fill="#000"
+          opacity={0.08}
+          pointerEvents="none"
+        />
 
         <DirtLayer geom={geom} level={level} />
       </svg>
@@ -284,36 +255,29 @@ export function IsoRoom({
       {furniture.map((f) => {
         const def = FURNITURE_SPRITES[f.asset];
         if (!def) return null;
-        const c = tileCenter(geom, f.x, f.y);
-        const selected = selectedUid === f.uid;
+        const { w, d } = footprint(def, f.rot);
+        const center = gridToScreen(geom, f.x + w / 2, f.y + d / 2);
+        const box = spriteBox(def, f.rot);
         return (
           <div
             key={f.uid}
             className="pointer-events-none absolute"
-            style={{ left: c.x - 32, top: c.y - def.height, zIndex: def.blocking ? depth(f.x, f.y) : 1 }}
+            style={{
+              left: center.x + box.x,
+              top: center.y + box.y,
+              zIndex: def.layer === "floor" ? 2 : depth(f.x + w - 1, f.y + d - 1),
+            }}
             title={f.name}
           >
-            <svg
-              width={64}
-              height={def.height + 18}
-              viewBox={`-32 ${-def.height} 64 ${def.height + 18}`}
-              className="block overflow-visible"
-              style={{ filter: selected ? "drop-shadow(0 0 4px #f2b84b) brightness(1.15)" : undefined }}
-            >
-              <g className="pointer-events-auto cursor-pointer" onClick={() => onFurniture(f)}>
-                {def.render()}
-              </g>
-            </svg>
+            <FurnitureSvg asset={f.asset} rot={f.rot} glow={selectedUid === f.uid} trophies={trophies} onClick={() => onFurniture(f)} />
           </div>
         );
       })}
 
-      {/* Dono do quarto (quando visitando) */}
       {host && hostTile && (
         <AvatarOnTile geom={geom} tile={hostTile} config={host.config} nickname={host.nickname} pose="stand" facing="right" frame={0} lift={0} />
       )}
 
-      {/* Avatar do jogador */}
       <AvatarOnTile
         geom={geom}
         tile={avatarTile}
@@ -323,10 +287,10 @@ export function IsoRoom({
         facing={facing}
         frame={frame}
         lift={seatLift}
-        center={avatarCenter}
         highlight
       />
 
+      <RoomLight geom={geom} mode={decor.light} />
       <CreepyLayer geom={geom} level={level} />
     </div>
   );
@@ -341,7 +305,6 @@ function AvatarOnTile({
   facing,
   frame,
   lift,
-  center,
   highlight,
 }: {
   geom: ReturnType<typeof roomGeometry>;
@@ -352,10 +315,9 @@ function AvatarOnTile({
   facing: "left" | "right";
   frame: 0 | 1;
   lift: number;
-  center?: Point;
   highlight?: boolean;
 }) {
-  const c = center ?? tileCenter(geom, tile.x, tile.y);
+  const c = tileCenter(geom, tile.x, tile.y);
   const height = 56;
   return (
     <div
@@ -368,15 +330,11 @@ function AvatarOnTile({
         transition: `left ${STEP_MS}ms linear, top ${STEP_MS}ms linear`,
       }}
     >
-      <span
-        className={`mb-0.5 whitespace-nowrap rounded px-1 text-[9px] leading-tight ${
-          highlight ? "bg-gold text-night" : "bg-night/80 text-cream"
-        }`}
-      >
+      <span className={`mb-0.5 whitespace-nowrap rounded px-1 font-pixel text-[7px] leading-tight ${highlight ? "bg-gold text-night" : "bg-night/80 text-cream"}`}>
         @{nickname}
       </span>
       <Avatar config={config} pose={pose} frame={frame} facing={facing} size={height} />
-      {pose !== "sit" && <div className="-mt-1.5 h-2 w-6 rounded-[50%] bg-black/25" />}
+      {pose !== "sit" && <div className="-mt-1.5 h-2.5 w-7 rounded-[50%] bg-black/25 blur-[1px]" />}
     </div>
   );
 }

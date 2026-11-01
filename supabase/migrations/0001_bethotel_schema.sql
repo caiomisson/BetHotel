@@ -710,7 +710,7 @@ end $$;
 -- 9. pg_cron — limpeza dos comprovantes (90 dias) e índice de limpeza (1h)
 -- Requer dois segredos no Vault (veja README):
 --   select vault.create_secret('https://SEU-PROJETO.supabase.co', 'project_url');
---   select vault.create_secret('SUA_SERVICE_ROLE_KEY', 'service_role_key');
+--   select vault.create_secret('sb_secret_SUA_CHAVE_SECRETA', 'service_role_key');
 -- A exclusão usa a API do Storage (o Supabase bloqueia DELETE direto em storage.objects).
 -- -----------------------------------------------------------------------------
 
@@ -735,7 +735,9 @@ begin
   loop
     perform net.http_delete(
       url := v_url || '/storage/v1/object/proofs/' || r.proof_image_url,
-      headers := jsonb_build_object('apikey', v_key, 'Authorization', 'Bearer ' || v_key)
+      -- Chave nova (sb_secret_...) vai só no header apikey; chave legada (JWT) vai nos dois.
+      headers := case when v_key like 'sb\_%' then jsonb_build_object('apikey', v_key)
+                      else jsonb_build_object('apikey', v_key, 'Authorization', 'Bearer ' || v_key) end
     );
     update bet_participants set proof_image_url = null, proof_expires_at = null where id = r.id;
     v_count := v_count + 1;

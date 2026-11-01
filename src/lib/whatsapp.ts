@@ -27,3 +27,14 @@ export function buildChargeLink({ phone, debtorNick, title, amount, prize, credi
   ].filter(Boolean);
   return `https://wa.me/${normalizeWhatsapp(phone)}?text=${encodeURIComponent(lines.join("\n"))}`;
 }
+
+/** Texto da Cobrança Rápida (vários itens com a mesma pessoa). */
+export function chargeMessage(fullName: string, total: number, titles: string[]): string {
+  const first = fullName.trim() || "parceiro(a)";
+  return `Fala, ${first}! Você tá devendo ${formatBRL(total)} (${titles.join(", ")}). Bora acertar antes que apareçam teias de aranha no seu quarto?`;
+}
+
+export function groupedChargeLink(phone: string, message: string, pixKey: string | null): string {
+  const text = pixKey ? `${message}\nMinha chave Pix: ${pixKey}` : message;
+  return `https://wa.me/${normalizeWhatsapp(phone)}?text=${encodeURIComponent(text)}`;
+}

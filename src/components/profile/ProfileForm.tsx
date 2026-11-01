@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useHotel } from "@/components/hotel/HotelProvider";
+import { DEFAULT_AVATAR } from "@/lib/constants";
 import { errorMessage } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import type { AvatarConfig, ShopItem } from "@/lib/types";
@@ -11,17 +12,18 @@ import { AvatarEditor } from "./AvatarEditor";
 export function ProfileForm({ clothing, welcome }: { clothing: ShopItem[]; welcome: boolean }) {
   const { me, myRoom } = useHotel();
   const router = useRouter();
-  const [avatar, setAvatar] = useState<AvatarConfig>(me.avatar_config);
+  const [avatar, setAvatar] = useState<AvatarConfig>({ ...DEFAULT_AVATAR, ...me.avatar_config });
   const [form, setForm] = useState({
     full_name: me.full_name,
     nickname: me.nickname,
     pix_key: me.pix_key ?? "",
     whatsapp: me.whatsapp ?? "",
+    bio: me.bio ?? "",
   });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
-  const ownedStyles = useMemo(() => {
+  const ownedAssets = useMemo(() => {
     const ids = new Set(myRoom.inventory_json.wardrobe ?? []);
     return new Set(clothing.filter((c) => ids.has(c.id)).map((c) => c.asset_url));
   }, [clothing, myRoom.inventory_json.wardrobe]);
@@ -38,6 +40,7 @@ export function ProfileForm({ clothing, welcome }: { clothing: ShopItem[]; welco
         pix_key: form.pix_key.trim() || null,
         whatsapp: form.whatsapp.replace(/\D/g, "") || null,
         avatar_config: avatar,
+        bio: form.bio.trim() || null,
       })
       .eq("id", me.id);
     setSaving(false);
@@ -56,8 +59,9 @@ export function ProfileForm({ clothing, welcome }: { clothing: ShopItem[]; welco
         </div>
       )}
       <section>
-        <h2 className="pixel-title mb-3">Visual do avatar</h2>
-        <AvatarEditor value={avatar} onChange={setAvatar} ownedStyles={ownedStyles} />
+        <h1 className="mb-1 font-pixel text-xl">Perfil · Quarto {me.room_number ?? "—"}</h1>
+        <h2 className="pixel-title mb-3 text-muted">Visual do avatar</h2>
+        <AvatarEditor value={avatar} onChange={setAvatar} ownedAssets={ownedAssets} />
       </section>
       <section className="grid gap-3 sm:grid-cols-2">
         <h2 className="pixel-title sm:col-span-2">Dados do hóspede</h2>
@@ -76,6 +80,10 @@ export function ProfileForm({ clothing, welcome }: { clothing: ShopItem[]; welco
         <div>
           <label className="pixel-label" htmlFor="pf-wa">WhatsApp</label>
           <input id="pf-wa" className="pixel-input" inputMode="tel" value={form.whatsapp} onChange={set("whatsapp")} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="pixel-label" htmlFor="pf-bio">Frase no Diretório (até 80 caracteres)</label>
+          <input id="pf-bio" className="pixel-input" maxLength={80} placeholder="Organizador oficial de bolão." value={form.bio} onChange={set("bio")} />
         </div>
         <p className="text-xs text-cream/60 sm:col-span-2">
           Pix e WhatsApp ficam visíveis apenas para quem divide uma aposta ou conta com você.

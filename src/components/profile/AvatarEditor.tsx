@@ -1,8 +1,8 @@
 "use client";
 
 import { Avatar } from "@/components/room/Avatar";
-import { PREMIUM_STYLES } from "@/lib/constants";
-import type { AvatarConfig, HairStyle, HatStyle, PantsStyle, ShirtStyle } from "@/lib/types";
+import { PREMIUM_STYLE_ASSET } from "@/lib/constants";
+import type { AvatarConfig, GlassesStyle, HairStyle, HatStyle, PantsStyle, ShirtStyle } from "@/lib/types";
 
 const SKINS = ["#f6d7b8", "#f1c27d", "#d9a066", "#b07a4f", "#8a5a3b", "#5c3a24"];
 const COLORS = ["#1d1d24", "#3b2a1a", "#8a4b23", "#d9a441", "#e8e0c8", "#c0453c", "#4a7bd1", "#3f9b4f", "#7b4fc0", "#ef6b5b", "#f2b84b", "#2f3e66"];
@@ -18,7 +18,6 @@ const OPTIONS = {
     ["tshirt", "Camiseta"],
     ["tank", "Regata"],
     ["hoodie", "Moletom"],
-    ["jacket", "Jaqueta"],
   ] as [ShirtStyle, string][],
   pants: [
     ["jeans", "Calça"],
@@ -29,24 +28,29 @@ const OPTIONS = {
     ["cap", "Boné"],
     ["crown", "Coroa"],
   ] as [HatStyle, string][],
+  glasses: [
+    ["none", "Sem óculos"],
+    ["sunglasses", "Óculos de sol"],
+  ] as [GlassesStyle, string][],
 };
 
 interface AvatarEditorProps {
   value: AvatarConfig;
   onChange: (v: AvatarConfig) => void;
-  /** asset_url das roupas premium já compradas. */
-  ownedStyles: Set<string>;
+  /** asset_url dos itens de vestuário já comprados. */
+  ownedAssets: Set<string>;
 }
 
-export function AvatarEditor({ value, onChange, ownedStyles }: AvatarEditorProps) {
+export function AvatarEditor({ value, onChange, ownedAssets }: AvatarEditorProps) {
   const set = <K extends keyof AvatarConfig>(k: K, v: AvatarConfig[K]) => onChange({ ...value, [k]: v });
 
-  const StyleRow = <K extends "hair" | "shirt" | "pants" | "hat">({ field, label }: { field: K; label: string }) => (
+  const StyleRow = <K extends "hair" | "shirt" | "pants" | "hat" | "glasses">({ field, label }: { field: K; label: string }) => (
     <div>
       <span className="pixel-label">{label}</span>
       <div className="flex flex-wrap gap-1.5">
         {(OPTIONS[field] as [string, string][]).map(([key, text]) => {
-          const locked = PREMIUM_STYLES.has(key) && !ownedStyles.has(key);
+          const asset = PREMIUM_STYLE_ASSET[key];
+          const locked = !!asset && !ownedAssets.has(asset);
           return (
             <button
               key={key}
@@ -65,7 +69,7 @@ export function AvatarEditor({ value, onChange, ownedStyles }: AvatarEditorProps
     </div>
   );
 
-  const ColorRow = ({ field, label, palette }: { field: "skin" | "hairColor" | "shirtColor" | "pantsColor"; label: string; palette: string[] }) => (
+  const ColorRow = ({ field, label, palette }: { field: "skin" | "hairColor" | "shirtColor" | "pantsColor" | "hatColor"; label: string; palette: string[] }) => (
     <div>
       <span className="pixel-label">{label}</span>
       <div className="flex flex-wrap gap-1.5">
@@ -99,6 +103,8 @@ export function AvatarEditor({ value, onChange, ownedStyles }: AvatarEditorProps
         <StyleRow field="pants" label="Calça" />
         <ColorRow field="pantsColor" label="Cor da calça" palette={COLORS} />
         <StyleRow field="hat" label="Chapéu" />
+        {value.hat === "cap" && <ColorRow field="hatColor" label="Cor do boné" palette={COLORS} />}
+        <StyleRow field="glasses" label="Óculos" />
       </div>
     </div>
   );

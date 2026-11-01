@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "react-qr-code";
 import { Modal } from "@/components/ui/Modal";
-import { PROOF_BUCKET, PROOF_MAX_BYTES, PROOF_TTL_DAYS } from "@/lib/constants";
+import { PROOF_ACCEPT, PROOF_BUCKET, PROOF_MAX_BYTES, PROOF_TTL_DAYS } from "@/lib/constants";
 import { errorMessage, formatBRL } from "@/lib/format";
 import { buildPixPayload } from "@/lib/pix";
 import { createClient } from "@/lib/supabase/client";
@@ -52,7 +52,7 @@ export function PixPaymentModal({ open, onClose, onPaid, bet, debt, myId }: PixP
     const f = e.target.files?.[0] ?? null;
     setError(null);
     if (f && f.size > PROOF_MAX_BYTES) {
-      setError("A foto passa de 4 MB. Tire um print menor ou comprima a imagem.");
+      setError("O arquivo passa de 4 MB. Envie um print menor ou comprima o arquivo.");
       e.target.value = "";
       return setFile(null);
     }
@@ -136,13 +136,13 @@ export function PixPaymentModal({ open, onClose, onPaid, bet, debt, myId }: PixP
           <label className="pixel-label" htmlFor="proof">
             {isPrize ? "Foto da prenda paga (opcional)" : "Comprovante (opcional)"}
           </label>
-          <input id="proof" type="file" accept="image/*" className="pixel-input file:mr-3 file:rounded file:border-0 file:bg-panel2 file:px-2 file:py-1 file:text-cream" onChange={onFile} />
-          <p className="mt-1 text-xs text-cream/60">Até 4 MB. A imagem é apagada automaticamente após {PROOF_TTL_DAYS} dias.</p>
+          <input id="proof" type="file" accept={PROOF_ACCEPT} className="pixel-input file:mr-3 file:rounded file:border-0 file:bg-panel2 file:px-2 file:py-1 file:text-cream" onChange={onFile} />
+          <p className="mt-1 text-xs text-cream/60">PNG, JPG, WEBP ou PDF, até 4 MB. Apagado automaticamente após {PROOF_TTL_DAYS} dias.</p>
         </div>
 
         {error && <p className="text-sm text-coral">{error}</p>}
         <button className="pixel-btn pixel-btn-mint w-full" onClick={confirmPaid} disabled={saving}>
-          {saving ? "Enviando…" : "Já paguei — avisar o credor"}
+          {saving ? "Enviando…" : "Quitar · +10 (avisar o credor)"}
         </button>
       </div>
     </Modal>
