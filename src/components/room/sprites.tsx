@@ -1,5 +1,6 @@
 import { shade } from "@/lib/color";
 import { HALF_H, HALF_W } from "@/lib/iso";
+import { PRIZE_SPRITES } from "./prizeSprites";
 
 /*
  * Sprites de mobília em SVG isométrico (arte original do BetHotel).
@@ -81,8 +82,10 @@ export interface SpriteDef {
   /** Altura máxima acima do chão, em px. */
   height: number;
   sittable: boolean;
-  /** 'floor' = tapete: dá para pisar e pôr móveis por cima. */
-  layer: "solid" | "floor";
+  /** solid = bloqueia · floor = tapete (pisável) · wall = parede · table = em cima de mesa */
+  layer: "solid" | "floor" | "wall" | "table";
+  /** Mesa: altura do tampo, aceita itens 'table' em cima. */
+  surface?: number;
   seatZ?: number;
   /** Clicar abre o Dashboard do Apostador. */
   opensStats?: boolean;
@@ -222,6 +225,7 @@ export const FURNITURE_SPRITES: Record<string, SpriteDef> = {
   table: {
     sx: 1,
     sy: 1,
+    surface: 23,
     height: 40,
     sittable: false,
     layer: "solid",
@@ -321,6 +325,7 @@ export const FURNITURE_SPRITES: Record<string, SpriteDef> = {
   meeting_table: {
     sx: 2,
     sy: 1,
+    surface: 29,
     height: 40,
     sittable: false,
     layer: "solid",
@@ -441,6 +446,9 @@ export const FURNITURE_SPRITES: Record<string, SpriteDef> = {
   },
 };
 
+// Itens de conquista entram no mesmo catálogo de sprites
+Object.assign(FURNITURE_SPRITES, PRIZE_SPRITES);
+
 /** Tamanho real no grid considerando a rotação. */
 export function footprint(def: SpriteDef, rot: 0 | 1 = 0): { w: number; d: number } {
   return rot ? { w: def.sy, d: def.sx } : { w: def.sx, d: def.sy };
@@ -480,6 +488,16 @@ export function FurnitureSvg({
 }) {
   const def = FURNITURE_SPRITES[asset];
   if (!def) return null;
+  if (def.layer === "wall") {
+    // pré-visualização "de frente" (no quarto o desenho é inclinado na parede)
+    return (
+      <svg width={48 * scale} height={38 * scale} viewBox="-24 -19 48 38" className="pointer-events-none block overflow-visible" aria-hidden>
+        <g className={onClick ? "pointer-events-auto cursor-pointer" : undefined} onClick={onClick}>
+          {def.render({ rot: 0 }, {})}
+        </g>
+      </svg>
+    );
+  }
   const box = spriteBox(def, rot);
   const { w, d } = footprint(def, rot);
   return (

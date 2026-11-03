@@ -80,9 +80,9 @@ export function AccountsPanel() {
           <Totals receive={ledger.toReceive} pay={ledger.toPay} />
           <div className="mt-2 flex items-center justify-between rounded-md border-2 border-line bg-deep/60 px-3 py-2.5 text-sm">
             <span className="flex items-center gap-2">
-              <Swords size={15} className="text-gold" /> Apostas ativas
+              <Swords size={15} className="text-gold" /> Apostas e eventos ativos
             </span>
-            <span className="font-pixel text-gold">{ledger.activeBets}</span>
+            <span className="font-pixel text-gold">{ledger.activeCount}</span>
           </div>
           <PersonList title="Te devem" list={ledger.owedToMe} sign="+" />
           <PersonList title="Você deve" list={ledger.iOwe} sign="-" />

@@ -5,6 +5,8 @@ export type ShirtStyle = "tshirt" | "tank" | "hoodie";
 export type PantsStyle = "jeans" | "shorts";
 export type HatStyle = "none" | "cap" | "crown";
 export type GlassesStyle = "none" | "sunglasses";
+/** Biotipo do avatar. */
+export type BodyType = "normal" | "gordo";
 
 export interface AvatarConfig {
   skin: string;
@@ -18,6 +20,7 @@ export interface AvatarConfig {
   /** Cor do Boné Customizado. */
   hatColor?: string;
   glasses?: GlassesStyle;
+  body?: BodyType;
 }
 
 /** Colunas liberadas para leitura pública (Pix/WhatsApp ficam protegidos). */
@@ -83,7 +86,9 @@ export interface Room {
 }
 
 export type ShopCategory = "furniture" | "clothing" | "renovation";
-export type ShopSection = "reforma" | "basica" | "conforto" | "eletronicos" | "vestuario" | "inicial";
+export type ShopSection = "reforma" | "basica" | "conforto" | "eletronicos" | "vestuario" | "inicial" | "premio";
+/** solid = móvel de chão · floor = tapete · wall = parede · table = em cima de mesa */
+export type ItemLayer = "solid" | "floor" | "wall" | "table";
 
 export interface ShopItem {
   id: string;
@@ -94,49 +99,109 @@ export interface ShopItem {
   asset_url: string;
   size_x: number;
   size_y: number;
-  layer: "solid" | "floor";
+  layer: ItemLayer;
   for_sale: boolean;
   sort_order: number;
+  /** Altura do tampo, para mesas que aceitam itens em cima. */
+  surface_z: number | null;
 }
 
 export type BetType = "bet" | "expense";
-/** aposta = 1v1, bolao = grupo, racha = despesa compartilhada, viagem = custos de viagem */
-export type BetCategory = "aposta" | "bolao" | "racha" | "viagem";
-export type BetStatus = "pending" | "awaiting_approval" | "settled";
-export type PaidStatus = "not_due" | "unpaid" | "marked_paid" | "confirmed";
+/** aposta = 1v1, bolao = coletiva (definido pelo número de participantes) */
+export type BetCategory = "aposta" | "bolao";
+export type BetStatus = "awaiting_acceptance" | "active" | "pending" | "awaiting_approval" | "settled" | "draw" | "cancelled";
+export type PaidStatus = "unpaid" | "marked_paid" | "confirmed";
 
 export interface BetParticipant {
   id: string;
   bet_id: string;
   user_id: string;
-  role: "participant" | "creditor";
-  share_amount: number | null;
+  invite_status: "pending" | "accepted";
+  result: "win" | "loss" | null;
+  cancel_vote: boolean;
+}
+
+export interface Bet {
+  id: string;
+  creator_id: string;
+  title: string;
+  amount: number;
+  type: BetType;
+  category: BetCategory;
+  status: BetStatus;
+  ends_at: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  bet_participants: BetParticipant[];
+}
+
+/** Cobrança gerada por aposta ou evento (validação dupla). */
+export interface Debt {
+  id: string;
+  bet_id: string | null;
+  event_id: string | null;
+  title: string;
+  debtor_id: string;
+  creditor_id: string;
+  amount: number | null;
   paid_status: PaidStatus;
-  creditor_id: string | null;
-  debt_since: string | null;
+  debt_since: string;
   marked_paid_at: string | null;
   confirmed_at: string | null;
   coins_awarded: number;
   proof_image_url: string | null;
-  proof_expires_at: string | null;
+  created_at: string;
 }
 
-export interface BetExpense {
+export type EventKind = "viagem" | "churrasco" | "festa" | "reveillon" | "carnaval" | "outro";
+export type MemberStatus = "invited" | "accepted" | "declined";
+
+export interface EventMember {
+  event_id: string;
+  user_id: string;
+  status: MemberStatus;
+}
+
+export interface EventSplit {
+  expense_id: string;
+  user_id: string;
+  share_amount: number;
+}
+
+export interface EventExpense {
   id: string;
-  creator_id: string;
-  title: string;
+  event_id: string;
+  payer_id: string;
+  amount: number;
   description: string | null;
-  amount: number | null;
-  prize_text: string | null;
-  type: BetType;
-  category: BetCategory;
-  status: BetStatus;
-  witness_id: string | null;
-  winner_id: string | null;
-  proof_image_url: string | null;
-  proof_expires_at: string | null;
+  created_by: string;
   created_at: string;
-  bet_participants: BetParticipant[];
+  event_expense_splits: EventSplit[];
+}
+
+export interface HotelEvent {
+  id: string;
+  name: string;
+  kind: EventKind;
+  creator_id: string;
+  status: "open" | "closed";
+  created_at: string;
+  closed_at: string | null;
+  event_members: EventMember[];
+  event_expenses: EventExpense[];
+}
+
+export interface Achievement {
+  code: string;
+  title: string;
+  rule: string;
+  group: "evento" | "aposta";
+  item_name: string;
+  item_asset: string;
+  current: number;
+  target: number;
+  unlocked: boolean;
+  unlocked_at: string | null;
 }
 
 export interface Mention {

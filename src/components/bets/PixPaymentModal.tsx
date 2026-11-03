@@ -7,14 +7,13 @@ import { PROOF_ACCEPT, PROOF_BUCKET, PROOF_MAX_BYTES, PROOF_TTL_DAYS } from "@/l
 import { errorMessage, formatBRL } from "@/lib/format";
 import { buildPixPayload } from "@/lib/pix";
 import { createClient } from "@/lib/supabase/client";
-import type { BetExpense, BetParticipant, ContactInfo } from "@/lib/types";
+import type { ContactInfo, Debt } from "@/lib/types";
 
 interface PixPaymentModalProps {
   open: boolean;
   onClose: () => void;
   onPaid: () => void;
-  bet: BetExpense;
-  debt: BetParticipant;
+  debt: Debt;
   myId: string;
 }
 
@@ -22,7 +21,7 @@ interface PixPaymentModalProps {
  * "Gateway" Pix visual: monta QR Code e Copia-e-Cola direto para a chave do
  * credor. O pagamento acontece no app do banco; aqui só registramos o aviso.
  */
-export function PixPaymentModal({ open, onClose, onPaid, bet, debt, myId }: PixPaymentModalProps) {
+export function PixPaymentModal({ open, onClose, onPaid, debt, myId }: PixPaymentModalProps) {
   const [creditor, setCreditor] = useState<ContactInfo | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [copied, setCopied] = useState(false);
@@ -30,7 +29,7 @@ export function PixPaymentModal({ open, onClose, onPaid, bet, debt, myId }: PixP
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open || !debt.creditor_id) return;
+    if (!open) return;
     setError(null);
     createClient()
       .rpc("get_contact_info", { p_user: debt.creditor_id })
@@ -38,15 +37,15 @@ export function PixPaymentModal({ open, onClose, onPaid, bet, debt, myId }: PixP
   }, [open, debt.creditor_id]);
 
   const payload = useMemo(() => {
-    if (!creditor?.pix_key || !debt.share_amount) return null;
+    if (!creditor?.pix_key || !debt.amount) return null;
     return buildPixPayload({
       key: creditor.pix_key,
       receiverName: creditor.full_name,
-      amount: Number(debt.share_amount),
-      description: `BetHotel ${bet.title}`,
+      amount: Number(debt.amount),
+      description: `BetHotel ${debt.title}`,
       txid: `BH${debt.id.replace(/-/g, "").slice(0, 20)}`,
     });
-  }, [creditor, debt, bet.title]);
+  }, [creditor, debt]);
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
@@ -78,21 +77,21 @@ export function PixPaymentModal({ open, onClose, onPaid, bet, debt, myId }: PixP
       }
     }
 
-    const { error } = await supabase.rpc("mark_paid", { p_participant: debt.id, p_proof_path: proofPath });
+    const { error } = await supabase.rpc("mark_paid", { p_debt: debt.id, p_proof_path: proofPath });
     setSaving(false);
     if (error) return setError(errorMessage(error));
     setFile(null);
     onPaid();
   }
 
-  const isPrize = !debt.share_amount;
+  const isPrize = !debt.amount;
 
   return (
-    <Modal open={open} onClose={onClose} title={isPrize ? "🎁 Pagar prenda" : "💸 Pagar via Pix"}>
+    <Modal open={open} onClose={onClose} title={isPrize ? "Pagar prenda" : "Pagar via Pix"}>
       <div className="space-y-4">
         <div className="rounded bg-night/50 p-3 text-sm">
-          <div className="text-cream/60">{bet.title}</div>
-          <div className="text-lg font-semibold text-gold">{isPrize ? bet.prize_text : formatBRL(debt.share_amount)}</div>
+          <div className="text-cream/60">{debt.title}</div>
+          <div className="text-lg font-semibold text-gold">{isPrize ? "Prenda" : formatBRL(debt.amount)}</div>
           {creditor && (
             <div className="text-cream/80">
               para <b>@{creditor.nickname}</b> ({creditor.full_name})

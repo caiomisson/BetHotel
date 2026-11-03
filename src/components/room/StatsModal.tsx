@@ -5,6 +5,8 @@ import { Modal } from "@/components/ui/Modal";
 import { createClient } from "@/lib/supabase/client";
 import { formatBRL, formatDate } from "@/lib/format";
 import type { UserStats } from "@/lib/types";
+import { useHotel } from "@/components/hotel/HotelProvider";
+import { AchievementsPanel } from "./AchievementsPanel";
 
 interface StatsModalProps {
   open: boolean;
@@ -14,6 +16,7 @@ interface StatsModalProps {
 }
 
 export function StatsModal({ open, onClose, userId, nickname }: StatsModalProps) {
+  const { me } = useHotel();
   const [stats, setStats] = useState<UserStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,7 +30,7 @@ export function StatsModal({ open, onClose, userId, nickname }: StatsModalProps)
   }, [open, userId]);
 
   return (
-    <Modal open={open} onClose={onClose} title={`Carreira de @${nickname}`}>
+    <Modal open={open} onClose={onClose} title={`Carreira de @${nickname}`} wide>
       {error && <p className="text-coral">{error}</p>}
       {!stats && !error && <p className="text-cream/60">Carregando estatísticas…</p>}
       {stats && (
@@ -74,6 +77,7 @@ export function StatsModal({ open, onClose, userId, nickname }: StatsModalProps)
               </ul>
             )}
           </div>
+          <AchievementsPanel userId={userId} isMe={me.id === userId} />
         </div>
       )}
     </Modal>

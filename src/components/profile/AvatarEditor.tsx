@@ -2,12 +2,16 @@
 
 import { Avatar } from "@/components/room/Avatar";
 import { PREMIUM_STYLE_ASSET } from "@/lib/constants";
-import type { AvatarConfig, GlassesStyle, HairStyle, HatStyle, PantsStyle, ShirtStyle } from "@/lib/types";
+import type { AvatarConfig, BodyType, GlassesStyle, HairStyle, HatStyle, PantsStyle, ShirtStyle } from "@/lib/types";
 
 const SKINS = ["#f6d7b8", "#f1c27d", "#d9a066", "#b07a4f", "#8a5a3b", "#5c3a24"];
 const COLORS = ["#1d1d24", "#3b2a1a", "#8a4b23", "#d9a441", "#e8e0c8", "#c0453c", "#4a7bd1", "#3f9b4f", "#7b4fc0", "#ef6b5b", "#f2b84b", "#2f3e66"];
 
 const OPTIONS = {
+  body: [
+    ["normal", "Normal"],
+    ["gordo", "Gordo"],
+  ] as [BodyType, string][],
   hair: [
     ["short", "Curto"],
     ["long", "Longo"],
@@ -44,7 +48,7 @@ interface AvatarEditorProps {
 export function AvatarEditor({ value, onChange, ownedAssets }: AvatarEditorProps) {
   const set = <K extends keyof AvatarConfig>(k: K, v: AvatarConfig[K]) => onChange({ ...value, [k]: v });
 
-  const StyleRow = <K extends "hair" | "shirt" | "pants" | "hat" | "glasses">({ field, label }: { field: K; label: string }) => (
+  const StyleRow = <K extends "body" | "hair" | "shirt" | "pants" | "hat" | "glasses">({ field, label }: { field: K; label: string }) => (
     <div>
       <span className="pixel-label">{label}</span>
       <div className="flex flex-wrap gap-1.5">
@@ -58,7 +62,7 @@ export function AvatarEditor({ value, onChange, ownedAssets }: AvatarEditorProps
               disabled={locked}
               title={locked ? "Item premium — compre na Loja" : undefined}
               onClick={() => set(field, key as AvatarConfig[K])}
-              className={`pixel-btn px-2 py-1 text-xs ${value[field] === key ? "pixel-btn-gold" : ""}`}
+              className={`pixel-btn px-2 py-1 text-xs ${(value[field] ?? (field === "body" ? "normal" : undefined)) === key ? "pixel-btn-gold" : ""}`}
             >
               {locked && "🔒 "}
               {text}
@@ -95,6 +99,7 @@ export function AvatarEditor({ value, onChange, ownedAssets }: AvatarEditorProps
         </div>
       </div>
       <div className="space-y-3">
+        <StyleRow field="body" label="Biotipo" />
         <ColorRow field="skin" label="Pele" palette={SKINS} />
         <StyleRow field="hair" label="Cabelo" />
         <ColorRow field="hairColor" label="Cor do cabelo" palette={COLORS} />

@@ -14,6 +14,18 @@ interface RoomWallsProps {
 
 const SKEW = 26.565; // inclinação 2:1 das paredes
 
+/** Faixas ocupadas pela janela (parede esquerda) e pela placa do quarto (parede direita). */
+export function wallFeatures(cols: number, rows: number): { window: [number, number]; plaque: [number, number] } {
+  const winW = Math.min(1.5, rows * 0.36);
+  const w0 = Math.min(Math.max(0.35, rows * 0.22), rows - winW - 0.3);
+  const plaqueW = Math.min(1.1, cols * 0.28);
+  const p0 = Math.min(cols * 0.58, cols - plaqueW - 0.25);
+  return { window: [w0, w0 + winW], plaque: [p0, p0 + plaqueW] };
+}
+
+/** Altura (z) do centro dos quadros pendurados. */
+export const WALL_ITEM_Z = 74;
+
 /** Dia entre 6h e 18h no relógio de quem está vendo. */
 function useIsDay() {
   const [day, setDay] = useState(true);
@@ -63,15 +75,12 @@ export function RoomWalls({ geom, decor, roomNumber, onStatsClick }: RoomWallsPr
   const leftFill = shade(base, -0.06);
   const rightFill = shade(base, -0.2);
 
-  const winW = Math.min(1.5, rows * 0.36);
-  const win = { g0: Math.max(0.35, rows * 0.22), z0: 46, z1: 96 };
-  win.g0 = Math.min(win.g0, rows - winW - 0.3);
-  const winG1 = win.g0 + winW;
-
-  const plaqueW = Math.min(1.1, cols * 0.28);
-  const plaque = { g0: cols * 0.58, z0: 64, z1: 90 };
-  plaque.g0 = Math.min(plaque.g0, cols - plaqueW - 0.25);
-  const plaqueG1 = plaque.g0 + plaqueW;
+  const f = wallFeatures(cols, rows);
+  const win = { g0: f.window[0], z0: 46, z1: 96 };
+  const winG1 = f.window[1];
+  const winW = winG1 - win.g0;
+  const plaque = { g0: f.plaque[0], z0: 64, z1: 90 };
+  const plaqueG1 = f.plaque[1];
 
   return (
     <g>

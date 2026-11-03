@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bug, Coins, Hammer, Megaphone, MessagesSquare, Radio, SendHorizontal, Trophy, Users } from "lucide-react";
+import { Bug, Coins, Hammer, Medal, Megaphone, MessagesSquare, PartyPopper, Radio, SendHorizontal, Trophy, Users } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useHotel } from "@/components/hotel/HotelProvider";
@@ -20,6 +20,8 @@ function eventIcon(kind: string) {
   if (kind === "ranking" || kind === "winner") return { icon: <Trophy size={17} />, tone: "gold" as const };
   if (kind === "roaches" || kind === "dirty") return { icon: <Bug size={17} />, tone: "coral" as const };
   if (kind === "settled" || kind === "clean") return { icon: <Coins size={17} />, tone: "gold" as const };
+  if (kind === "achievement") return { icon: <Medal size={17} />, tone: "gold" as const };
+  if (kind === "event") return { icon: <PartyPopper size={17} />, tone: "muted" as const };
   if (kind === "purchase" || kind === "upgrade") return { icon: <Hammer size={17} />, tone: "muted" as const };
   return { icon: <Megaphone size={17} />, tone: "muted" as const };
 }

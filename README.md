@@ -18,7 +18,7 @@ npm run dev                  # http://localhost:3000
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (plano Free).
 2. **Database → Extensions:** ative `pg_cron` e `pg_net` (o script também tenta ativá-las).
-3. **SQL Editor:** cole e rode o arquivo `supabase/migrations/0001_bethotel_schema.sql` depois o `0002_catalogo_reformas.sql` e por último o `0003_quartos_ranking_categorias.sql` (nessa ordem).
+3. **SQL Editor:** cole e rode o arquivo `supabase/migrations/0001_bethotel_schema.sql` depois o `0002_catalogo_reformas.sql` depois o `0003_quartos_ranking_categorias.sql` e por último o `0004_apostas_eventos_conquistas.sql` (nessa ordem).
    Ele cria tabelas, RLS, funções, bucket `proofs` (4 MB, privado), Realtime, jobs do pg_cron e a loja inicial.
 4. **Segredos para apagar comprovantes vencidos** (SQL Editor, troque os valores):
    ```sql
@@ -92,6 +92,22 @@ npm run dev                  # http://localhost:3000
 | Aviso de baratas/dedetização, moedas recebidas | `refresh_cleanliness`, `confirm_payment` |
 | Comprovante em PNG, JPG, WEBP ou PDF (até 4 MB) | bucket `proofs` |
 | Animações | Framer Motion |
+
+## 4.3 Atualização 0004 — Apostas com aceite, Eventos e Conquistas
+
+| O que mudou | Onde |
+|---|---|
+| Novo registro com só duas opções: Aposta e Evento | `CreateBetModal.tsx` |
+| Aposta: aguardando aceite → ativa quando 100% aceitam; quem recusa sai | `create_bet`, `respond_bet` |
+| Criador define vencedor(es) ou empate; perdedores pagam, vencedores dividem | `declare_result`, `declare_draw` |
+| Cancelar de comum acordo (antes do aceite, o criador retira) | `cancel_bet` |
+| Evento estilo Splitwise: nome obrigatório, convite, sub-despesas, balanço, encerrar gera cobranças | `create_event`, `respond_event`, `add_event_expense`, `close_event`, `EventPage.tsx` |
+| Tipo do evento detectado pelo nome (viagem, churrasco, festa, réveillon, carnaval) | `detect_event_kind` |
+| Cobranças unificadas (apostas + eventos), mesma validação dupla e +10 moedas | tabela `debts` |
+| 11 conquistas que creditam itens no inventário | `achievements`, `check_achievements`, `AchievementsPanel.tsx` |
+| Itens de parede e em cima de mesas | `move_furniture`, `prizeSprites.tsx`, `IsoRoom.tsx` |
+| Biotipo do avatar: Normal ou Gordo | `Avatar.tsx`, `AvatarEditor.tsx` |
+| Despesas antigas (racha/viagem) viraram Eventos encerrados, sem perder cobranças | migração 0004 |
 
 ## 5. Estrutura
 

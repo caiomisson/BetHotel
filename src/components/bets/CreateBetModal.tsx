@@ -1,210 +1,154 @@
 "use client";
 
+import { CalendarDays, PartyPopper, Swords } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useHotel } from "@/components/hotel/HotelProvider";
 import { Modal } from "@/components/ui/Modal";
 import { errorMessage, formatBRL } from "@/lib/format";
+import { detectEventKind, EVENT_KIND_LABEL } from "@/lib/ledger";
 import { createClient } from "@/lib/supabase/client";
-import { Plane, Soup, Swords, Trophy } from "lucide-react";
-import type { BetCategory, BetType } from "@/lib/types";
 import { GuestPicker } from "./GuestPicker";
 
-type ValueMode = "money" | "prize";
+type Kind = "bet" | "event";
 
-const CATEGORIES: { key: BetCategory; type: BetType; label: string; icon: typeof Swords }[] = [
-  { key: "aposta", type: "bet", label: "Aposta 1v1", icon: Swords },
-  { key: "bolao", type: "bet", label: "Bolão", icon: Trophy },
-  { key: "racha", type: "expense", label: "Racha", icon: Soup },
-  { key: "viagem", type: "expense", label: "Viagem", icon: Plane },
-];
-
-const INITIAL = {
-  category: "aposta" as BetCategory,
-  type: "bet" as BetType,
-  title: "",
-  description: "",
-  valueMode: "money" as ValueMode,
-  amount: "",
-  prize: "",
-  participants: [] as string[],
-  witness: [] as string[],
-  includeMe: true,
-};
-
-/** Aparelho de Apostas do Bar: aposta 1v1/grupo ou divisão de conta. */
-export function CreateBetModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** Novo Registro: só duas opções — Aposta e Evento. */
+export function CreateBetModal({ open, onClose, initial = "bet" }: { open: boolean; onClose: () => void; initial?: Kind }) {
   const { me, guests } = useHotel();
   const router = useRouter();
-  const [f, setF] = useState(INITIAL);
+  const [kind, setKind] = useState<Kind>(initial);
+  const [title, setTitle] = useState("");
+  const [amount, setAmount] = useState("");
+  const [people, setPeople] = useState<string[]>([]);
+  const [endsAt, setEndsAt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const others = useMemo(() => guests.filter((g) => g.id !== me.id), [guests, me.id]);
-  const amount = Number(f.amount.replace(",", "."));
-  const isExpense = f.type === "expense";
-
-  // Divisão igualitária (centavos que sobram ficam com quem pagou)
-  const share = useMemo(() => {
-    if (!isExpense || !amount || f.participants.length === 0) return 0;
-    const people = f.participants.length + (f.includeMe ? 1 : 0);
-    return Math.floor((amount / people) * 100) / 100;
-  }, [isExpense, amount, f.participants.length, f.includeMe]);
-
-  const update = <K extends keyof typeof INITIAL>(k: K, v: (typeof INITIAL)[K]) => setF((s) => ({ ...s, [k]: v }));
+  const value = Number(amount.replace(/\./g, "").replace(",", "."));
+  const detected = detectEventKind(title);
 
   function close() {
-    setF(INITIAL);
+    setTitle("");
+    setAmount("");
+    setPeople([]);
+    setEndsAt("");
     setError(null);
     onClose();
   }
 
+  function validate(): string | null {
+    if (!title.trim()) return kind === "bet" ? "Descreva a aposta." : "O nome do evento é obrigatório.";
+    if (kind === "bet" && (!value || value <= 0)) return "Informe um valor válido em R$.";
+    if (people.length === 0) return kind === "bet" ? "Escolha pelo menos um participante." : "Convide pelo menos um amigo.";
+    return null;
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const problem = validate();
+    if (problem) return setError(problem);
     setError(null);
-    const money = isExpense || f.valueMode === "money";
-    if (money && (!amount || amount <= 0)) return setError("Informe um valor válido em R$.");
-    if (!money && !f.prize.trim()) return setError("Descreva a prenda.");
-    if (f.participants.length === 0) return setError(isExpense ? "Escolha com quem dividir." : "Escolha pelo menos um oponente.");
-    if (f.category === "aposta" && f.participants.length > 1) return setError("Aposta 1v1 é contra uma pessoa só. Para grupo, use Bolão.");
-    if (f.witness[0] && f.participants.includes(f.witness[0])) return setError("A testemunha não pode participar.");
-
     setSaving(true);
-    const { error } = await createClient().rpc("create_bet_expense", {
-      p_type: f.type,
-      p_title: f.title,
-      p_description: f.description,
-      p_amount: money ? amount : null,
-      p_prize_text: money ? null : f.prize,
-      p_witness_id: isExpense ? null : f.witness[0] ?? null,
-      p_participants: f.participants.map((id) => ({ user_id: id, share_amount: isExpense ? share : null })),
-      p_category: f.category,
-    });
+    const supabase = createClient();
+    const { data, error } =
+      kind === "bet"
+        ? await supabase.rpc("create_bet", {
+            p_title: title,
+            p_amount: value,
+            p_participants: people,
+            p_ends_at: endsAt ? new Date(endsAt).toISOString() : null,
+          })
+        : await supabase.rpc("create_event", { p_name: title, p_invitees: people });
     setSaving(false);
     if (error) return setError(errorMessage(error));
+    const id = data as string;
     close();
-    router.push("/apostas");
+    router.push(kind === "event" ? `/apostas/evento/${id}` : "/apostas");
     router.refresh();
   }
 
   return (
     <Modal open={open} onClose={close} title="Novo registro">
       <form onSubmit={submit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {CATEGORIES.map(({ key, type, label, icon: Icon }) => (
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              ["bet", "Aposta", "1v1 ou coletiva", Swords],
+              ["event", "Evento", "Viagem, churrasco, festa…", PartyPopper],
+            ] as const
+          ).map(([k, label, hint, Icon]) => (
             <button
-              key={key}
+              key={k}
               type="button"
-              onClick={() => setF((s) => ({ ...s, category: key, type, participants: key === "aposta" ? s.participants.slice(0, 1) : s.participants }))}
-              className={`pixel-btn flex-col gap-1 py-2.5 text-xs ${f.category === key ? "pixel-btn-gold" : ""}`}
+              onClick={() => {
+                setKind(k);
+                setError(null);
+              }}
+              className={`flex flex-col items-center gap-1 rounded-md border-2 px-3 py-3 transition ${kind === k ? "border-gold bg-gold/10 text-gold" : "border-line text-muted hover:text-cream"}`}
             >
-              <Icon size={16} />
-              {label}
+              <Icon size={20} />
+              <span className="font-pixel text-sm">{label}</span>
+              <span className="text-[11px] text-muted">{hint}</span>
             </button>
           ))}
         </div>
 
         <div>
-          <label className="pixel-label" htmlFor="bet-title">{isExpense ? "O que foi pago?" : "O que está em jogo?"}</label>
+          <label className="pixel-label" htmlFor="rec-title">
+            {kind === "bet" ? "Descrição da aposta" : "Nome do evento (obrigatório)"}
+          </label>
           <input
-            id="bet-title"
+            id="rec-title"
             required
             maxLength={120}
             className="pixel-input"
-            placeholder={isExpense ? "Churrasco de sábado" : "Galo x Cruzeiro: quem perde paga"}
-            value={f.title}
-            onChange={(e) => update("title", e.target.value)}
+            placeholder={kind === "bet" ? "Flamengo x Palmeiras: quem perde paga" : "Viagem pra Ubatuba"}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
           />
-        </div>
-
-        <div>
-          <label className="pixel-label" htmlFor="bet-desc">{isExpense ? "Detalhes (opcional)" : "Termos da aposta"}</label>
-          <textarea
-            id="bet-desc"
-            rows={2}
-            maxLength={1000}
-            className="pixel-input"
-            placeholder={isExpense ? "Carne, carvão e gelo" : "Vale só o tempo normal. Empate ninguém paga."}
-            value={f.description}
-            onChange={(e) => update("description", e.target.value)}
-          />
-        </div>
-
-        {!isExpense && (
-          <div className="grid grid-cols-2 gap-2">
-            {(["money", "prize"] as ValueMode[]).map((m) => (
-              <button key={m} type="button" onClick={() => update("valueMode", m)} className={`pixel-btn ${f.valueMode === m ? "pixel-btn-mint" : ""}`}>
-                {m === "money" ? "💰 Valor em R$" : "🎁 Prenda"}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {isExpense || f.valueMode === "money" ? (
-          <div>
-            <label className="pixel-label" htmlFor="bet-amount">{isExpense ? "Valor total pago (R$)" : "Valor por participante (R$)"}</label>
-            <input
-              id="bet-amount"
-              inputMode="decimal"
-              className="pixel-input"
-              placeholder="50,00"
-              value={f.amount}
-              onChange={(e) => update("amount", e.target.value.replace(/[^\d.,]/g, ""))}
-            />
-          </div>
-        ) : (
-          <div>
-            <label className="pixel-label" htmlFor="bet-prize">Prenda</label>
-            <input
-              id="bet-prize"
-              maxLength={200}
-              className="pixel-input"
-              placeholder="Pagar um açaí / usar camisa do rival"
-              value={f.prize}
-              onChange={(e) => update("prize", e.target.value)}
-            />
-          </div>
-        )}
-
-        <div>
-          <label className="pixel-label">{isExpense ? "Dividir com" : f.category === "aposta" ? "Oponente" : "Participantes do bolão"}</label>
-          <GuestPicker guests={others} selected={f.participants} onChange={(ids) => update("participants", ids)} single={f.category === "aposta"} />
-          {!isExpense && f.participants.length > 1 && (
-            <p className="mt-1 text-xs text-cream/60">Bolão: quem vencer leva a parte de cada perdedor.</p>
+          {kind === "event" && title.trim() && (
+            <p className="mt-1 text-xs text-muted">
+              Tipo detectado: <b className="text-gold">{EVENT_KIND_LABEL[detected]}</b>
+              {detected === "outro" ? " (não conta para conquistas de evento)" : " · conta para as conquistas"}
+            </p>
           )}
         </div>
 
-        {isExpense && (
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={f.includeMe} onChange={(e) => update("includeMe", e.target.checked)} />
-            Incluir minha parte na divisão
-          </label>
-        )}
-
-        {isExpense && share > 0 && (
-          <p className="rounded bg-night/50 px-3 py-2 text-sm">
-            Cada um te deve <b className="text-gold">{formatBRL(share)}</b>
-            {f.includeMe && " (você também paga a sua parte)"}.
-          </p>
-        )}
-
-        {!isExpense && (
-          <div>
-            <label className="pixel-label">Testemunha (opcional)</label>
-            <GuestPicker
-              guests={others.filter((g) => !f.participants.includes(g.id))}
-              selected={f.witness}
-              onChange={(ids) => update("witness", ids)}
-              single
-              placeholder="Quem vai validar o resultado?"
-            />
-            <p className="mt-1 text-xs text-cream/60">Com testemunha, só ela declara o vencedor.</p>
+        {kind === "bet" && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="pixel-label" htmlFor="rec-amount">Valor por pessoa (R$)</label>
+              <input id="rec-amount" inputMode="decimal" className="pixel-input" placeholder="20,00" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ""))} />
+            </div>
+            <div>
+              <label className="pixel-label" htmlFor="rec-end">
+                <CalendarDays size={11} className="mr-1 inline" />
+                Término (opcional)
+              </label>
+              <input id="rec-end" type="datetime-local" className="pixel-input" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+            </div>
           </div>
         )}
 
+        <div>
+          <label className="pixel-label">{kind === "bet" ? "Participantes" : "Convidar amigos"}</label>
+          <GuestPicker guests={others} selected={people} onChange={setPeople} placeholder="Buscar @nick" />
+          <p className="mt-1 text-xs text-muted">
+            {kind === "bet"
+              ? people.length > 1
+                ? `Aposta coletiva com ${people.length + 1} pessoas. Fica ativa quando todos aceitarem.`
+                : "1 oponente = 1v1. Vários = coletiva. Fica ativa quando todos aceitarem."
+              : "Os convidados precisam aceitar o convite para entrar nas contas."}
+          </p>
+          {kind === "bet" && value > 0 && people.length > 0 && (
+            <p className="mt-1 text-xs text-cream/80">Cada perdedor paga {formatBRL(value)}; o total é dividido entre os vencedores.</p>
+          )}
+        </div>
+
         {error && <p className="text-sm text-coral">{error}</p>}
         <button className="pixel-btn pixel-btn-gold w-full" disabled={saving}>
-          {saving ? "Registrando…" : isExpense ? "Registrar divisão" : "Apostar!"}
+          {saving ? "Criando…" : kind === "bet" ? "Enviar convites da aposta" : "Criar evento e convidar"}
         </button>
       </form>
     </Modal>

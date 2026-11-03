@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useMemo } from "react";
 import { buildLedger, type Ledger } from "@/lib/ledger";
-import type { BetExpense, MyProfile, NickEntry, Room } from "@/lib/types";
+import type { Bet, Debt, HotelEvent, MyProfile, NickEntry, Room } from "@/lib/types";
 
 interface HotelContextValue {
   me: MyProfile;
@@ -10,8 +10,10 @@ interface HotelContextValue {
   guests: NickEntry[];
   guestById: Map<string, NickEntry>;
   nickById: Map<string, string>;
-  /** Apostas e despesas em que participo (RLS já filtra). */
-  bets: BetExpense[];
+  /** Apostas, eventos e cobranças em que participo (RLS já filtra). */
+  bets: Bet[];
+  events: HotelEvent[];
+  debts: Debt[];
   ledger: Ledger;
 }
 
@@ -22,19 +24,23 @@ export function HotelProvider({
   myRoom,
   guests,
   bets,
+  events,
+  debts,
   children,
-}: Pick<HotelContextValue, "me" | "myRoom" | "guests" | "bets"> & { children: React.ReactNode }) {
+}: Pick<HotelContextValue, "me" | "myRoom" | "guests" | "bets" | "events" | "debts"> & { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       me,
       myRoom,
       guests,
       bets,
+      events,
+      debts,
       guestById: new Map(guests.map((g) => [g.id, g])),
       nickById: new Map(guests.map((g) => [g.id, g.nickname])),
-      ledger: buildLedger(bets, me.id),
+      ledger: buildLedger(debts, bets, events, me.id),
     }),
-    [me, myRoom, guests, bets],
+    [me, myRoom, guests, bets, events, debts],
   );
   return <HotelContext.Provider value={value}>{children}</HotelContext.Provider>;
 }

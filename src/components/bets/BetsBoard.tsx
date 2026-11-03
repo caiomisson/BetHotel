@@ -1,15 +1,26 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, Clock, Plus, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, BellRing, Clock, Plus, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useHotel } from "@/components/hotel/HotelProvider";
 import { formatBRL } from "@/lib/format";
+import type { Bet, Debt, HotelEvent } from "@/lib/types";
 import { BetCard } from "./BetCard";
 import { CreateBetModal } from "./CreateBetModal";
+import { EventCard } from "./EventCard";
 
-type TypeFilter = "all" | "bet" | "expense";
-type StatusFilter = "all" | "pending" | "awaiting_approval" | "settled";
+type TypeFilter = "all" | "bet" | "event";
+type Phase = "invite" | "running" | "paying" | "done";
+type StatusFilter = "all" | Phase;
+
+const PHASE_LABEL: Record<StatusFilter, string> = {
+  all: "Todos",
+  invite: "Aguardando aceite",
+  running: "Em andamento",
+  paying: "Pagamento pendente",
+  done: "Encerrados",
+};
 
 function Tile({ icon, label, value, cls }: { icon: React.ReactNode; label: string; value: string; cls: string }) {
   return (
@@ -23,14 +34,35 @@ function Tile({ icon, label, value, cls }: { icon: React.ReactNode; label: strin
   );
 }
 
+function betPhase(b: Bet): Phase {
+  if (b.status === "awaiting_acceptance") return "invite";
+  if (b.status === "active") return "running";
+  if (b.status === "pending" || b.status === "awaiting_approval") return "paying";
+  return "done";
+}
+
+function eventPhase(e: HotelEvent, myId: string, debts: Debt[]): Phase {
+  if (e.status === "open") return e.event_members.some((m) => m.user_id === myId && m.status === "invited") ? "invite" : "running";
+  return debts.some((d) => d.event_id === e.id && d.paid_status !== "confirmed") ? "paying" : "done";
+}
+
+type Row = { kind: "bet"; bet: Bet; phase: Phase; at: string } | { kind: "event"; event: HotelEvent; phase: Phase; at: string };
+
 export function BetsBoard() {
-  const { bets, ledger } = useHotel();
+  const { me, bets, events, debts, ledger } = useHotel();
   const router = useRouter();
   const [type, setType] = useState<TypeFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [creating, setCreating] = useState(false);
 
-  const list = bets.filter((b) => (type === "all" || b.type === type) && (status === "all" || b.status === status));
+  const rows: Row[] = [
+    ...bets.map((b) => ({ kind: "bet" as const, bet: b, phase: betPhase(b), at: b.created_at })),
+    ...events.map((e) => ({ kind: "event" as const, event: e, phase: eventPhase(e, me.id, debts), at: e.created_at })),
+  ]
+    .filter((r) => (type === "all" || r.kind === type) && (status === "all" || r.phase === status))
+    .sort((a, b) => Number(a.phase === "done") - Number(b.phase === "done") || b.at.localeCompare(a.at));
+
+  const refresh = () => router.refresh();
 
   return (
     <section>
@@ -51,13 +83,23 @@ export function BetsBoard() {
         <Tile icon={<Clock size={20} />} label="Pendentes" value={String(ledger.pendingCount)} cls="text-cream" />
       </div>
 
+      {ledger.invitesCount > 0 && (
+        <button
+          onClick={() => setStatus("invite")}
+          className="mb-4 flex w-full items-center gap-2 rounded-md border-2 border-sky/60 bg-sky/10 px-4 py-2.5 text-left text-sm text-sky"
+        >
+          <BellRing size={16} />
+          Você tem {ledger.invitesCount} convite{ledger.invitesCount > 1 ? "s" : ""} esperando resposta. Ver agora
+        </button>
+      )}
+
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex rounded-md border-2 border-line p-1">
           {(
             [
               ["all", "Tudo"],
               ["bet", "Apostas"],
-              ["expense", "Despesas"],
+              ["event", "Eventos"],
             ] as [TypeFilter, string][]
           ).map(([k, label]) => (
             <button key={k} onClick={() => setType(k)} className={`rounded px-3 py-1.5 font-pixel text-xs ${type === k ? "bg-gold text-night" : "text-muted hover:text-cream"}`}>
@@ -68,20 +110,19 @@ export function BetsBoard() {
         <label className="ml-auto flex items-center gap-2 text-sm text-muted">
           Status
           <select className="pixel-input w-auto py-2" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
-            <option value="all">Todos</option>
-            <option value="pending">Pendente</option>
-            <option value="awaiting_approval">Aguardando confirmação</option>
-            <option value="settled">Quitado</option>
+            {(Object.keys(PHASE_LABEL) as StatusFilter[]).map((k) => (
+              <option key={k} value={k}>
+                {PHASE_LABEL[k]}
+              </option>
+            ))}
           </select>
         </label>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {list.map((b) => (
-          <BetCard key={b.id} bet={b} onChanged={() => router.refresh()} />
-        ))}
+        {rows.map((r) => (r.kind === "bet" ? <BetCard key={r.bet.id} bet={r.bet} onChanged={refresh} /> : <EventCard key={r.event.id} event={r.event} onChanged={refresh} />))}
       </div>
-      {list.length === 0 && <p className="pixel-panel py-10 text-center text-sm text-muted">Nada por aqui. Crie um registro no botão Novo registro.</p>}
+      {rows.length === 0 && <p className="pixel-panel py-10 text-center text-sm text-muted">Nada por aqui. Crie uma aposta ou um evento em Novo registro.</p>}
 
       <CreateBetModal open={creating} onClose={() => setCreating(false)} />
     </section>

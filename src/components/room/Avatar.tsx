@@ -32,6 +32,8 @@ export function Avatar({ config, pose = "stand", frame = 0, facing = "right", si
   const sitting = pose === "sit";
   const dy = sitting ? 5 : 0; // tronco desce ao sentar
   const swing = pose === "walk" ? (frame === 0 ? 1 : -1) : 0;
+  /** Biotipo "Gordo": tronco, braços e pernas mais largos, bochecha e barriga. */
+  const fat = c.body === "gordo";
 
   const px: Px[] = [];
   const add = (x: number, y: number, w: number, h: number, fill: string) => px.push([x, y + dy, w, h, fill]);
@@ -49,6 +51,13 @@ export function Avatar({ config, pose = "stand", frame = 0, facing = "right", si
   add(9, 7, 1, 1, "#1d1d24");
   add(11, 7, 1, 1, "#1d1d24");
   add(10, 9, 2, 1, shade(skin, -0.3));
+  if (fat) {
+    add(12, 5, 1, 5, skin); // bochechas
+    add(3, 5, 1, 5, skinDark);
+    add(11, 9, 1, 1, shade(skin, 0.15));
+    add(4, 11, 8, 1, skin); // papada
+    add(5, 11, 6, 1, skinDark);
+  }
 
   // --- Cabelo
   if (c.hair !== "bald") {
@@ -90,9 +99,18 @@ export function Avatar({ config, pose = "stand", frame = 0, facing = "right", si
   }
 
   // --- Pescoço e tronco
-  add(7, 11, 3, 1, skinDark);
-  add(4, 12, 8, 8, shirt);
-  add(4, 12, 1, 8, shirtDark);
+  if (!fat) add(7, 11, 3, 1, skinDark);
+  if (fat) {
+    add(1, 12, 14, 9, shirt);
+    add(1, 12, 1, 9, shirtDark);
+    add(15, 14, 1, 6, shirt); // barriga para a frente
+    add(16, 15, 1, 4, shirt);
+    add(10, 15, 4, 4, shade(shirt, 0.12));
+    add(2, 20, 14, 1, shirtDark);
+  } else {
+    add(4, 12, 8, 8, shirt);
+    add(4, 12, 1, 8, shirtDark);
+  }
 
   if (c.shirt === "hoodie") {
     add(7, 12, 1, 3, "#f3e9d2");
@@ -100,8 +118,8 @@ export function Avatar({ config, pose = "stand", frame = 0, facing = "right", si
     add(6, 17, 4, 2, shirtDark);
   }
   if (c.shirt === "tank") {
-    add(4, 12, 2, 2, skin);
-    add(10, 12, 2, 2, skin);
+    add(fat ? 1 : 4, 12, 2, 2, skin);
+    add(fat ? 13 : 10, 12, 2, 2, skin);
   }
 
   // --- Braços (trás e frente) com balanço na caminhada
@@ -114,30 +132,31 @@ export function Avatar({ config, pose = "stand", frame = 0, facing = "right", si
     add(x, base + sleeveLen, 2, 7 - sleeveLen, back ? skinDark : skin);
     add(x, base + 7, 2, 1, back ? skinDark : skin);
   };
-  arm(2, -swing, true);
-  arm(12, swing, false);
+  arm(fat ? -1 : 2, -swing, true);
+  arm(fat ? 15 : 12, swing, false);
 
   if (!sitting) {
     // --- Pernas em pé / andando
     const legL = swing; // deslocamento horizontal da passada
     const legR = -swing;
+    const lw = fat ? 6 : 4;
     const leg = (x: number, shift: number, dark: boolean) => {
       const col = dark ? pantsDark : pants;
       if (c.pants === "shorts") {
-        addAbs(x + shift, 20, 4, 4, col);
-        addAbs(x + shift + 1, 24, 2, 3, dark ? skinDark : skin);
+        addAbs(x + shift, 20, lw, 4, col);
+        addAbs(x + shift + 1, 24, lw - 2, 3, dark ? skinDark : skin);
       } else {
-        addAbs(x + shift, 20, 4, 7, col);
+        addAbs(x + shift, 20, lw, 7, col);
       }
-      addAbs(x + shift, 27, 4, 2, shoe);
-      addAbs(x + shift + 3, 28, 2, 1, shoe);
+      addAbs(x + shift, 27, lw, 2, shoe);
+      addAbs(x + shift + lw - 1, 28, 2, 1, shoe);
     };
-    leg(4, legL, true);
-    leg(8, legR, false);
+    leg(fat ? 2 : 4, legL, true);
+    leg(fat ? 8 : 8, legR, false);
   } else {
     // --- Pernas sentadas (coxas na horizontal)
-    addAbs(4, 25, 10, 3, pants);
-    addAbs(4, 25, 2, 3, pantsDark);
+    addAbs(fat ? 1 : 4, 25, fat ? 15 : 10, fat ? 4 : 3, pants);
+    addAbs(fat ? 1 : 4, 25, 2, fat ? 4 : 3, pantsDark);
     if (c.pants === "shorts") {
       addAbs(8, 25, 6, 3, pants);
       addAbs(11, 28, 2, 2, skin);
@@ -149,9 +168,9 @@ export function Avatar({ config, pose = "stand", frame = 0, facing = "right", si
 
   return (
     <svg
-      width={size / 2}
+      width={(size * 20) / 34}
       height={size}
-      viewBox="0 -2 16 34"
+      viewBox="-2 -2 20 34"
       className="crisp block"
       style={{ transform: facing === "left" ? "scaleX(-1)" : undefined }}
       aria-hidden

@@ -3,7 +3,7 @@ import { HotelProvider } from "@/components/hotel/HotelProvider";
 import { PresenceProvider } from "@/components/hotel/PresenceProvider";
 import { TopBar } from "@/components/hotel/TopBar";
 import { createClient } from "@/lib/supabase/server";
-import type { BetExpense, MyProfile, NickEntry, Room } from "@/lib/types";
+import type { Bet, Debt, HotelEvent, MyProfile, NickEntry, Room } from "@/lib/types";
 
 export default async function HotelLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -12,11 +12,22 @@ export default async function HotelLayout({ children }: { children: React.ReactN
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: profileRows }, { data: room }, { data: guests }, { data: bets }] = await Promise.all([
+  const [{ data: profileRows }, { data: room }, { data: guests }, { data: bets }, { data: events }, { data: debts }] = await Promise.all([
     supabase.rpc("get_my_profile"),
     supabase.from("rooms").select("*").eq("user_id", user.id).single(),
     supabase.from("profiles").select("id,nickname,full_name,avatar_config,room_number,bio").order("nickname").limit(1000),
-    supabase.from("bets_expenses").select("*, bet_participants(*)").order("created_at", { ascending: false }).limit(200),
+    supabase
+      .from("bets_expenses")
+      .select("id,creator_id,title,amount,type,category,status,ends_at,resolved_at,created_at,bet_participants(id,bet_id,user_id,invite_status,result,cancel_vote)")
+      .eq("type", "bet")
+      .order("created_at", { ascending: false })
+      .limit(200),
+    supabase
+      .from("events")
+      .select("*, event_members(*), event_expenses(*, event_expense_splits(*))")
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase.from("debts").select("*").order("created_at", { ascending: false }).limit(500),
   ]);
 
   const me = (profileRows as MyProfile[] | null)?.[0];
@@ -31,7 +42,14 @@ export default async function HotelLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <HotelProvider me={me} myRoom={room as Room} guests={(guests ?? []) as NickEntry[]} bets={(bets ?? []) as BetExpense[]}>
+    <HotelProvider
+      me={me}
+      myRoom={room as Room}
+      guests={(guests ?? []) as NickEntry[]}
+      bets={(bets ?? []) as Bet[]}
+      events={(events ?? []) as HotelEvent[]}
+      debts={(debts ?? []) as Debt[]}
+    >
       <PresenceProvider userId={me.id}>
         <TopBar />
         <main className="mx-auto w-full max-w-[1260px] px-3 pb-10 pt-5 sm:px-5">{children}</main>

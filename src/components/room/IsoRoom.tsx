@@ -6,7 +6,7 @@ import type { AvatarConfig, RoomDecor } from "@/lib/types";
 import { Avatar, type AvatarPose } from "./Avatar";
 import { CreepyLayer, DirtLayer, dirtLevel } from "./DirtOverlay";
 import { RoomLight } from "./RoomLight";
-import { RoomWalls } from "./RoomWalls";
+import { RoomWalls, WALL_ITEM_Z, wallFeatures } from "./RoomWalls";
 import { footprint, FURNITURE_SPRITES, FurnitureSvg, spriteBox } from "./sprites";
 
 export interface PlacedFurniture {
@@ -41,7 +41,11 @@ interface IsoRoomProps {
   selectedUid?: string | null;
   onEditTileClick?: (x: number, y: number) => void;
   onEditFurnitureClick?: (uid: string) => void;
+  /** Mostra os encaixes da parede (item de parede selecionado no modo decorar). */
+  wallSlots?: boolean;
 }
+
+const SKEW = 26.565;
 
 const STEP_MS = 230;
 const DIRS: Point[] = [
@@ -81,6 +85,7 @@ export function IsoRoom({
   selectedUid,
   onEditTileClick,
   onEditFurnitureClick,
+  wallSlots,
 }: IsoRoomProps) {
   const geom = useMemo(() => roomGeometry(cols, rows), [cols, rows]);
   const level = dirtLevel(cleanliness);
@@ -189,7 +194,12 @@ export function IsoRoom({
   const onTile = (x: number, y: number) => (editMode ? onEditTileClick?.(x, y) : walkTo({ x, y }));
   const onFurniture = (f: PlacedFurniture) => {
     if (editMode) return onEditFurnitureClick?.(f.uid);
-    if (FURNITURE_SPRITES[f.asset]?.layer === "floor") return walkTo({ x: f.x, y: f.y });
+    const layer = FURNITURE_SPRITES[f.asset]?.layer;
+    if (layer === "floor") return walkTo({ x: f.x, y: f.y });
+    if (layer === "table") {
+      const t = tableUnder(f.x, f.y);
+      return t && goToFurniture(t);
+    }
     goToFurniture(f);
   };
 
@@ -197,6 +207,25 @@ export function IsoRoom({
   const avatarPose: AvatarPose = seat ? "sit" : path.length ? "walk" : "stand";
   const avatarTile = seat?.tile ?? pos;
   const seatLift = seat ? FURNITURE_SPRITES[seat.furniture.asset]?.seatZ ?? 12 : 0;
+
+  // ---- Itens de parede e de mesa
+  const wallItems = furniture.filter((f) => FURNITURE_SPRITES[f.asset]?.layer === "wall");
+  const surfaces = furniture.filter((f) => FURNITURE_SPRITES[f.asset]?.surface);
+  const tableUnder = (x: number, y: number) => surfaces.find((t) => tilesOf(t).some((p) => p.x === x && p.y === y));
+  const features = wallFeatures(cols, rows);
+  const slotFree = (side: "l" | "r", i: number) => {
+    const [a, b] = side === "l" ? features.window : features.plaque;
+    return i + 1 <= a + 0.05 || i >= b - 0.05;
+  };
+  const wallAnchor = (f: { x: number; y: number }) => {
+    const right = f.y === -1;
+    const p = right ? gridToScreen(geom, f.x + 0.5, 0) : gridToScreen(geom, 0, f.y + 0.5);
+    return { x: p.x, y: p.y - WALL_ITEM_Z, skew: right ? SKEW : -SKEW };
+  };
+  const wallPt = (side: "l" | "r", g: number, z: number) => {
+    const p = side === "r" ? gridToScreen(geom, g, 0) : gridToScreen(geom, 0, g);
+    return `${p.x},${p.y - z}`;
+  };
 
   // ---- Laje do piso
   const bottom = gridToScreen(geom, cols, rows);
@@ -251,10 +280,63 @@ export function IsoRoom({
         <DirtLayer geom={geom} level={level} />
       </svg>
 
+      {/* Itens pendurados na parede */}
+      <svg width={geom.width} height={geom.height} className="pointer-events-none absolute inset-0 overflow-visible" style={{ zIndex: 1 }}>
+        {wallItems.map((f) => {
+          const a = wallAnchor(f);
+          const def = FURNITURE_SPRITES[f.asset];
+          return (
+            <g
+              key={f.uid}
+              transform={`translate(${a.x} ${a.y}) skewY(${a.skew}) scale(0.76)`}
+              className={editMode ? "pointer-events-auto cursor-pointer" : undefined}
+              style={{ filter: selectedUid === f.uid ? "drop-shadow(0 0 3px #f2b84b) brightness(1.15)" : "drop-shadow(1px 2px 0 rgba(0,0,0,.35))" }}
+              onClick={() => editMode && onEditFurnitureClick?.(f.uid)}
+            >
+              <title>{f.name}</title>
+              {def.render({ rot: 0 }, {})}
+            </g>
+          );
+        })}
+        {wallSlots &&
+          (["l", "r"] as const).flatMap((side) =>
+            Array.from({ length: side === "l" ? rows : cols }).map((_, i) =>
+              slotFree(side, i) ? (
+                <polygon
+                  key={`${side}${i}`}
+                  points={`${wallPt(side, i + 0.08, WALL_ITEM_Z + 22)} ${wallPt(side, i + 0.92, WALL_ITEM_Z + 22)} ${wallPt(side, i + 0.92, WALL_ITEM_Z - 22)} ${wallPt(side, i + 0.08, WALL_ITEM_Z - 22)}`}
+                  className="pointer-events-auto cursor-pointer fill-mint/15 stroke-mint hover:fill-mint/35"
+                  strokeWidth={1.2}
+                  strokeDasharray="3 2"
+                  onClick={() => onEditTileClick?.(side === "l" ? -1 : i, side === "l" ? i : -1)}
+                />
+              ) : null,
+            ),
+          )}
+      </svg>
+
       {/* Mobília */}
       {furniture.map((f) => {
         const def = FURNITURE_SPRITES[f.asset];
-        if (!def) return null;
+        if (!def || def.layer === "wall") return null;
+        if (def.layer === "table") {
+          const table = tableUnder(f.x, f.y);
+          if (!table) return null;
+          const tdef = FURNITURE_SPRITES[table.asset];
+          const tfp = footprint(tdef, table.rot);
+          const c = tileCenter(geom, f.x, f.y);
+          const tb = spriteBox(def, 0);
+          return (
+            <div
+              key={f.uid}
+              className="pointer-events-none absolute"
+              style={{ left: c.x + tb.x, top: c.y + tb.y - (tdef.surface ?? 0), zIndex: depth(table.x + tfp.w - 1, table.y + tfp.d - 1, 3) }}
+              title={f.name}
+            >
+              <FurnitureSvg asset={f.asset} glow={selectedUid === f.uid} onClick={() => onFurniture(f)} />
+            </div>
+          );
+        }
         const { w, d } = footprint(def, f.rot);
         const center = gridToScreen(geom, f.x + w / 2, f.y + d / 2);
         const box = spriteBox(def, f.rot);

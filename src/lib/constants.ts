@@ -37,6 +37,7 @@ export const DEFAULT_AVATAR: AvatarConfig = {
   hat: "none",
   hatColor: "#d24b3e",
   glasses: "none",
+  body: "normal",
 };
 
 /** Estilo de avatar → asset_url do item da loja que o libera. */
@@ -56,12 +57,6 @@ export const SHOP_SECTIONS = [
   { key: "vestuario", label: "Aparência do Avatar", hint: "Vista o seu avatar para a ocasião." },
 ] as const;
 
-export const CATEGORY_LABEL: Record<string, string> = {
-  aposta: "Aposta 1v1",
-  bolao: "Bolão",
-  racha: "Despesa compartilhada",
-  viagem: "Viagem",
-};
 
 /** Paleta da Pintura Simples / Texturizada. */
 export const WALL_COLORS = [

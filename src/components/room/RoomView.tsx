@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { FurniturePlacement, PublicProfile, Room, RoomDecor, ShopItem, WallTexture } from "@/lib/types";
 import { AccountsPanel, VisitPanel } from "./SidePanels";
 import { InventoryPanel } from "./InventoryPanel";
-import { IsoRoom, type PlacedFurniture } from "./IsoRoom";
+import { IsoRoom, tilesOf, type PlacedFurniture } from "./IsoRoom";
 import { FURNITURE_SPRITES } from "./sprites";
 import { StatsModal } from "./StatsModal";
 
@@ -92,6 +92,31 @@ export function RoomView({ owner, room, shopItems, ownerWins }: RoomViewProps) {
   }
 
   const selectedRot = (inventory.find((f) => f.uid === selected)?.rot ?? 0) as 0 | 1;
+  const selectedEntry = inventory.find((f) => f.uid === selected);
+  const selectedLayer = selectedEntry ? FURNITURE_SPRITES[itemsById.get(selectedEntry.item_id)?.asset_url ?? ""]?.layer : undefined;
+
+  /** Clique num móvel no modo decorar: com item de mesa selecionado, coloca em cima. */
+  function onEditFurniture(uid: string) {
+    const target = placed.find((p) => p.uid === uid);
+    const tdef = target ? FURNITURE_SPRITES[target.asset] : undefined;
+    if (selected && selectedLayer === "table" && target && tdef?.surface) {
+      const tiles = tilesOf(target);
+      const taken = new Set(
+        placed.filter((p) => p.uid !== selected && FURNITURE_SPRITES[p.asset]?.layer === "table").map((p) => `${p.x},${p.y}`),
+      );
+      const spot = tiles.find((t) => !taken.has(`${t.x},${t.y}`)) ?? tiles[0];
+      move(selected, spot.x, spot.y, 0).then((ok) => ok && setSelected(null));
+      return;
+    }
+    setSelected(uid === selected ? null : uid);
+  }
+
+  const editHint =
+    selectedLayer === "wall"
+      ? "Clique num dos espaços tracejados da parede"
+      : selectedLayer === "table"
+        ? "Clique numa mesa (Mesa de Centro ou de Reunião)"
+        : "Modo decorar: escolha um móvel e clique num piso";
   const precarious = decor.wall === "peeling" || decor.light === "flicker";
   const scaledH = geom.height * box.scale;
 
@@ -135,13 +160,14 @@ export function RoomView({ owner, room, shopItems, ownerWins }: RoomViewProps) {
               onStatsClick={() => setStatsOpen(true)}
               editMode={editMode}
               selectedUid={selected}
-              onEditFurnitureClick={(uid) => setSelected(uid === selected ? null : uid)}
+              onEditFurnitureClick={onEditFurniture}
+              wallSlots={editMode && selectedLayer === "wall"}
               onEditTileClick={(x, y) => selected && move(selected, x, y, selectedRot).then((ok) => ok && setSelected(null))}
             />
           </div>
           <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-md bg-night/85 px-2.5 py-1.5 text-xs text-cream/80">
             <Footprints size={13} className="text-gold" />
-            {editMode ? "Modo decorar: escolha um móvel e clique num piso" : "Clique no piso para andar · clique em assentos para sentar"}
+            {editMode ? editHint : "Clique no piso para andar · clique em assentos para sentar"}
           </div>
         </div>
       </section>
