@@ -33,6 +33,11 @@ const config: Config = {
         },
         swing: { "0%,100%": { transform: "rotate(-6deg)" }, "50%": { transform: "rotate(6deg)" } },
         // oscilação lenta e suave (sem flashes rápidos)
+        bubble: {
+          "0%": { opacity: "0", transform: "translateY(4px)" },
+          "8%,85%": { opacity: "1", transform: "translateY(0)" },
+          "100%": { opacity: "0", transform: "translateY(-6px)" },
+        },
         "flicker-dim": {
           "0%,18%,22%,60%,64%,100%": { opacity: "0.22" },
           "20%": { opacity: "0.38" },
@@ -50,6 +55,7 @@ const config: Config = {
         bob: "bob 1.2s ease-in-out infinite",
         fly: "fly 2.4s linear infinite",
         swing: "swing 3s ease-in-out infinite",
+        bubble: "bubble 6s ease-out forwards",
         "flicker-dim": "flicker-dim 4.5s ease-in-out infinite",
         "flicker-glow": "flicker-glow 4.5s ease-in-out infinite",
       },

@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useHotel } from "@/components/hotel/HotelProvider";
 import { Avatar } from "@/components/room/Avatar";
 import { FURNITURE_SPRITES, FurnitureSvg, spriteBox } from "@/components/room/sprites";
-import { DEFAULT_AVATAR, SHOP_SECTIONS, WEEKLY_COIN_CAP } from "@/lib/constants";
+import { DEFAULT_AVATAR, SHOP_SECTIONS } from "@/lib/constants";
 import { errorMessage } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import type { AvatarConfig, ShopItem, ShopSection } from "@/lib/types";
@@ -219,7 +219,7 @@ export function ShopPage({ items }: { items: ShopItem[] }) {
               );
             })}
           </motion.ul>
-          <p className="mt-4 text-xs text-muted">Cada conta quitada rende +10 Hotel Coins (até {WEEKLY_COIN_CAP} por semana).</p>
+          <p className="mt-4 text-xs text-muted">Ganhe Hotel Coins vencendo apostas (ao receber cada pagamento) e quitando eventos (pela sua parte de cada gasto).</p>
         </div>
       </div>
     </section>

@@ -6,7 +6,7 @@ export function Initial({ guest, size = 24 }: { guest?: Pick<NickEntry, "nicknam
   const color = guest?.avatar_config?.shirtColor ?? "#64748b";
   return (
     <span
-      className="inline-grid shrink-0 place-items-center rounded-[4px] border-2 font-pixel font-bold text-night"
+      className="inline-grid shrink-0 place-items-center rounded-[4px] border-2 font-pixel text-night"
       style={{
         width: size,
         height: size,

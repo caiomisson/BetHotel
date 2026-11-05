@@ -18,7 +18,7 @@ npm run dev                  # http://localhost:3000
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (plano Free).
 2. **Database → Extensions:** ative `pg_cron` e `pg_net` (o script também tenta ativá-las).
-3. **SQL Editor:** cole e rode o arquivo `supabase/migrations/0001_bethotel_schema.sql` depois o `0002_catalogo_reformas.sql` depois o `0003_quartos_ranking_categorias.sql` e por último o `0004_apostas_eventos_conquistas.sql` (nessa ordem).
+3. **SQL Editor:** cole e rode o arquivo `supabase/migrations/0001_bethotel_schema.sql` depois o `0002_catalogo_reformas.sql` depois o `0003_quartos_ranking_categorias.sql` depois o `0004_apostas_eventos_conquistas.sql` e por último o `0005_coins_peso_eventos_sem_aceite.sql` (nessa ordem).
    Ele cria tabelas, RLS, funções, bucket `proofs` (4 MB, privado), Realtime, jobs do pg_cron e a loja inicial.
 4. **Segredos para apagar comprovantes vencidos** (SQL Editor, troque os valores):
    ```sql
@@ -84,7 +84,7 @@ npm run dev                  # http://localhost:3000
 |---|---|
 | 5 abas: Meu Quarto, Loja do Hotel, Diretório, Apostas & Despesas, Central de Avisos | `TopBar.tsx`, rotas em `src/app/(hotel)` |
 | Kitnet 4x4 inicial; Studio 6x6 (50) e Loft 8x8 (150) em Meu Quarto → Inventário | `upgrade_room`, `room_size` |
-| +10 Hotel Coins por quitação confirmada, teto 100/semana (validação dupla mantida) | `confirm_payment` |
+| Hotel Coins por valor (ver 4.4), validação dupla mantida | `confirm_payment`, `calc_hotel_coins` |
 | Categorias Aposta 1v1, Bolão, Racha, Viagem | `bets_expenses.category` |
 | Número do quarto e frase no perfil | `profiles.room_number`, `profiles.bio` |
 | Status online/ausente/offline | `PresenceProvider.tsx` (Supabase Realtime Presence) |
@@ -108,6 +108,21 @@ npm run dev                  # http://localhost:3000
 | Itens de parede e em cima de mesas | `move_furniture`, `prizeSprites.tsx`, `IsoRoom.tsx` |
 | Biotipo do avatar: Normal ou Gordo | `Avatar.tsx`, `AvatarEditor.tsx` |
 | Despesas antigas (racha/viagem) viraram Eventos encerrados, sem perder cobranças | migração 0004 |
+
+## 4.4 Atualização 0005 — Coins por valor, eventos sem aceite e quarto multiplayer
+
+| O que mudou | Onde |
+|---|---|
+| Fórmula `calcularHotelCoins` (média do catálogo 54,29; abaixo dela há bônus; mínimo 1; arredonda) | `src/lib/coins.ts`, `calc_hotel_coins()` |
+| Aposta: só o vencedor ganha coins, a cada pagamento confirmado, sem teto; empate não gera coins | `confirm_payment` |
+| Evento: cada pessoa ganha a soma das coins de cada parte sua; credita quando o evento está encerrado e ela não deve mais nada | `award_event_coins`, `close_event`, `confirm_payment` |
+| Evento sem aceite: quem é escolhido entra direto | `create_event`, `invite_to_event` |
+| Sair do evento: a parte é redividida entre os outros do gasto (se for o único, fica com quem pagou). Não pode sair quem criou, quem pagou um gasto, nem após encerrar | `leave_event`, `EventPage.tsx` |
+| Correção do erro "DELETE requires a WHERE clause" ao definir vencedor/empate e ao encerrar evento | `declare_result`, `close_event` |
+| Fonte pixel legível (VT323, 5 diferente de 8) | `public/fonts`, `globals.css` |
+| Avatar chibi em 4 direções, camadas paperdoll, contorno 1px, luz do alto à esquerda | `Avatar.tsx` |
+| Móveis mais altos em proporção ao avatar; assento na altura do quadril | `sprites.tsx`, `prizeSprites.tsx`, `IsoRoom.tsx` |
+| Quarto multiplayer em tempo real + balões de fala com cor | `useRoomPresence.ts`, `RoomView.tsx` |
 
 ## 5. Estrutura
 

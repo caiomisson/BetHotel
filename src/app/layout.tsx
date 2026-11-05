@@ -1,7 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import "@fontsource/pixelify-sans/400.css";
-import "@fontsource/pixelify-sans/600.css";
-import "@fontsource/pixelify-sans/700.css";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";

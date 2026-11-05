@@ -1,8 +1,6 @@
 import type { AvatarConfig } from "./types";
 
-/** Regras de moedas (espelham confirm_payment no banco). */
-export const COINS_PER_SETTLEMENT = 10;
-export const WEEKLY_COIN_CAP = 100;
+/** Regras de moedas: veja src/lib/coins.ts (calcularHotelCoins) e calc_hotel_coins() no banco. */
 
 /** Uma dívida vence 48h depois de nascer. */
 export const DEBT_GRACE_HOURS = 48;

@@ -27,7 +27,7 @@ export function TopBar() {
           <span className="grid h-9 w-9 place-items-center rounded-md border-2 border-gold text-gold">
             <Building2 size={18} />
           </span>
-          <span className="hidden font-pixel text-xl font-bold sm:inline">
+          <span className="hidden font-pixel text-xl sm:inline">
             Bet<span className="text-gold">Hotel</span>
           </span>
         </Link>
@@ -60,7 +60,7 @@ export function TopBar() {
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <div className="flex items-center gap-1.5 rounded-md border-2 border-gold/70 px-2.5 py-1.5 text-gold" title="Hotel Coins">
             <Coins size={16} />
-            <span className="font-pixel text-base font-bold">{me.hotel_coins}</span>
+            <span className="font-pixel text-base">{me.hotel_coins}</span>
             <span className="hidden font-pixel text-[10px] uppercase sm:inline">coins</span>
           </div>
           <Link href="/perfil" className="flex items-center gap-2 rounded-md px-1 hover:bg-panel2" title="Perfil e avatar">

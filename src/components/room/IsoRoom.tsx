@@ -1,13 +1,34 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { depth, findPath, gridToScreen, roomGeometry, tileCenter, tileKey, type Point } from "@/lib/iso";
+import {
+  depth,
+  findPath,
+  gridToScreen,
+  roomGeometry,
+  tileCenter,
+  tileKey,
+  type Point,
+} from "@/lib/iso";
 import type { AvatarConfig, RoomDecor } from "@/lib/types";
-import { Avatar, type AvatarPose } from "./Avatar";
+import {
+  Avatar,
+  AVATAR_FEET_Y,
+  AVATAR_H,
+  AVATAR_HIP_Y,
+  AVATAR_W,
+  type AvatarDir,
+  type AvatarPose,
+} from "./Avatar";
 import { CreepyLayer, DirtLayer, dirtLevel } from "./DirtOverlay";
 import { RoomLight } from "./RoomLight";
 import { RoomWalls, WALL_ITEM_Z, wallFeatures } from "./RoomWalls";
-import { footprint, FURNITURE_SPRITES, FurnitureSvg, spriteBox } from "./sprites";
+import {
+  footprint,
+  FURNITURE_SPRITES,
+  FurnitureSvg,
+  spriteBox,
+} from "./sprites";
 
 export interface PlacedFurniture {
   uid: string;
@@ -23,6 +44,27 @@ export interface RoomAvatar {
   config: AvatarConfig;
 }
 
+/** Estado de um avatar no quarto (o meu, ou de outro hóspede via tempo real). */
+export interface AvatarState {
+  x: number;
+  y: number;
+  dir: AvatarDir;
+  /** uid do móvel onde está sentado. */
+  seat: string | null;
+  walking?: boolean;
+}
+
+export interface RemoteAvatar extends RoomAvatar, AvatarState {
+  userId: string;
+}
+
+export interface SpeechBubble {
+  id: string;
+  userId: string;
+  text: string;
+  color: string;
+}
+
 interface IsoRoomProps {
   cols: number;
   rows: number;
@@ -34,8 +76,13 @@ interface IsoRoomProps {
   furniture: PlacedFurniture[];
   /** Avatar controlado pelo usuário logado. */
   player: RoomAvatar;
-  /** Dono do quarto, exibido parado quando alguém está visitando. */
-  host?: RoomAvatar;
+  playerId: string;
+  /** Outros hóspedes presentes no quarto (tempo real). */
+  others?: RemoteAvatar[];
+  /** Balões de fala ativos. */
+  bubbles?: SpeechBubble[];
+  /** Avisa a cada passo/assento, para sincronizar com os outros. */
+  onPlayerState?: (s: AvatarState) => void;
   onStatsClick: () => void;
   editMode?: boolean;
   selectedUid?: string | null;
@@ -56,12 +103,18 @@ const DIRS: Point[] = [
 ];
 
 /** Pisos ocupados por um móvel posicionado. */
-export function tilesOf(f: { asset: string; x: number; y: number; rot: 0 | 1 }): Point[] {
+export function tilesOf(f: {
+  asset: string;
+  x: number;
+  y: number;
+  rot: 0 | 1;
+}): Point[] {
   const def = FURNITURE_SPRITES[f.asset];
   if (!def) return [];
   const { w, d } = footprint(def, f.rot);
   const out: Point[] = [];
-  for (let i = 0; i < w; i++) for (let j = 0; j < d; j++) out.push({ x: f.x + i, y: f.y + j });
+  for (let i = 0; i < w; i++)
+    for (let j = 0; j < d; j++) out.push({ x: f.x + i, y: f.y + j });
   return out;
 }
 
@@ -79,7 +132,10 @@ export function IsoRoom({
   trophies,
   furniture,
   player,
-  host,
+  playerId,
+  others = [],
+  bubbles = [],
+  onPlayerState,
   onStatsClick,
   editMode,
   selectedUid,
@@ -93,28 +149,35 @@ export function IsoRoom({
   // ---- Ocupação do grid (tapetes não bloqueiam)
   const blocked = useMemo(() => {
     const s = new Set<string>();
-    furniture.forEach((f) => FURNITURE_SPRITES[f.asset]?.layer === "solid" && tilesOf(f).forEach((t) => s.add(tileKey(t))));
+    furniture.forEach(
+      (f) =>
+        FURNITURE_SPRITES[f.asset]?.layer === "solid" &&
+        tilesOf(f).forEach((t) => s.add(tileKey(t))),
+    );
     return s;
   }, [furniture]);
 
   const freeTiles = useMemo(() => {
     const list: Point[] = [];
-    for (let y = rows - 1; y >= 0; y--) for (let x = cols - 1; x >= 0; x--) if (!blocked.has(tileKey({ x, y }))) list.push({ x, y });
+    for (let y = rows - 1; y >= 0; y--)
+      for (let x = cols - 1; x >= 0; x--)
+        if (!blocked.has(tileKey({ x, y }))) list.push({ x, y });
     return list;
   }, [blocked, cols, rows]);
 
-  const hostTile = host ? freeTiles.find((t) => t.x <= 1 && t.y >= rows - 3) ?? freeTiles[freeTiles.length - 1] : null;
-
   // ---- Estado do avatar
-  const [pos, setPos] = useState<Point>(() => freeTiles[0] ?? { x: cols - 1, y: rows - 1 });
+  const [pos, setPos] = useState<Point>(
+    () => freeTiles[0] ?? { x: cols - 1, y: rows - 1 },
+  );
   const [path, setPath] = useState<Point[]>([]);
-  const [facing, setFacing] = useState<"left" | "right">("left");
+  const [dir, setDir] = useState<AvatarDir>("sw");
   const [frame, setFrame] = useState<0 | 1>(0);
   const [seat, setSeat] = useState<Seat | null>(null);
   const pendingTarget = useRef<PlacedFurniture | null>(null);
 
   useEffect(() => {
-    if (!seat && blocked.has(tileKey(pos)) && freeTiles[0]) setPos(freeTiles[0]);
+    if (!seat && blocked.has(tileKey(pos)) && freeTiles[0])
+      setPos(freeTiles[0]);
   }, [blocked, freeTiles, pos, seat]);
 
   /** Chegou ao lado do móvel: senta, abre estatísticas ou só olha para ele. */
@@ -122,13 +185,16 @@ export function IsoRoom({
     (f: PlacedFurniture, from: Point) => {
       const def = FURNITURE_SPRITES[f.asset];
       const tiles = tilesOf(f);
-      const touching = tiles.find((t) => Math.abs(t.x - from.x) + Math.abs(t.y - from.y) === 1) ?? tiles[0];
+      const touching =
+        tiles.find(
+          (t) => Math.abs(t.x - from.x) + Math.abs(t.y - from.y) === 1,
+        ) ?? tiles[0];
       if (def?.sittable) {
         setSeat({ furniture: f, tile: touching });
-        setFacing(f.rot ? "right" : "left");
+        setDir(f.rot ? "se" : "sw"); // frente do móvel
         return;
       }
-      setFacing(touching.x - from.x > 0 || touching.y - from.y < 0 ? "right" : "left");
+      setDir(dirOf(touching.x - from.x, touching.y - from.y));
       if (def?.opensStats) onStatsClick();
     },
     [onStatsClick],
@@ -139,7 +205,7 @@ export function IsoRoom({
     if (path.length === 0) return;
     const t = setTimeout(() => {
       const [next, ...rest] = path;
-      setFacing(next.x - pos.x > 0 || next.y - pos.y < 0 ? "right" : "left");
+      setDir(dirOf(next.x - pos.x, next.y - pos.y));
       setPos(next);
       setFrame((f) => (f === 0 ? 1 : 0));
       setPath(rest);
@@ -191,7 +257,8 @@ export function IsoRoom({
     [pos, cols, rows, blocked, arriveAt],
   );
 
-  const onTile = (x: number, y: number) => (editMode ? onEditTileClick?.(x, y) : walkTo({ x, y }));
+  const onTile = (x: number, y: number) =>
+    editMode ? onEditTileClick?.(x, y) : walkTo({ x, y });
   const onFurniture = (f: PlacedFurniture) => {
     if (editMode) return onEditFurnitureClick?.(f.uid);
     const layer = FURNITURE_SPRITES[f.asset]?.layer;
@@ -203,15 +270,31 @@ export function IsoRoom({
     goToFurniture(f);
   };
 
+  // ---- Sincroniza meu estado com quem está no quarto
+  useEffect(() => {
+    onPlayerState?.({
+      x: seat?.tile.x ?? pos.x,
+      y: seat?.tile.y ?? pos.y,
+      dir,
+      seat: seat?.furniture.uid ?? null,
+      walking: path.length > 0,
+    });
+  }, [pos, dir, seat, path.length, onPlayerState]);
+
   // ---- Avatar
   const avatarPose: AvatarPose = seat ? "sit" : path.length ? "walk" : "stand";
   const avatarTile = seat?.tile ?? pos;
-  const seatLift = seat ? FURNITURE_SPRITES[seat.furniture.asset]?.seatZ ?? 12 : 0;
+  const seatLift = seat
+    ? (FURNITURE_SPRITES[seat.furniture.asset]?.seatZ ?? 12)
+    : 0;
 
   // ---- Itens de parede e de mesa
-  const wallItems = furniture.filter((f) => FURNITURE_SPRITES[f.asset]?.layer === "wall");
+  const wallItems = furniture.filter(
+    (f) => FURNITURE_SPRITES[f.asset]?.layer === "wall",
+  );
   const surfaces = furniture.filter((f) => FURNITURE_SPRITES[f.asset]?.surface);
-  const tableUnder = (x: number, y: number) => surfaces.find((t) => tilesOf(t).some((p) => p.x === x && p.y === y));
+  const tableUnder = (x: number, y: number) =>
+    surfaces.find((t) => tilesOf(t).some((p) => p.x === x && p.y === y));
   const features = wallFeatures(cols, rows);
   const slotFree = (side: "l" | "r", i: number) => {
     const [a, b] = side === "l" ? features.window : features.plaque;
@@ -219,11 +302,14 @@ export function IsoRoom({
   };
   const wallAnchor = (f: { x: number; y: number }) => {
     const right = f.y === -1;
-    const p = right ? gridToScreen(geom, f.x + 0.5, 0) : gridToScreen(geom, 0, f.y + 0.5);
+    const p = right
+      ? gridToScreen(geom, f.x + 0.5, 0)
+      : gridToScreen(geom, 0, f.y + 0.5);
     return { x: p.x, y: p.y - WALL_ITEM_Z, skew: right ? SKEW : -SKEW };
   };
   const wallPt = (side: "l" | "r", g: number, z: number) => {
-    const p = side === "r" ? gridToScreen(geom, g, 0) : gridToScreen(geom, 0, g);
+    const p =
+      side === "r" ? gridToScreen(geom, g, 0) : gridToScreen(geom, 0, g);
     return `${p.x},${p.y - z}`;
   };
 
@@ -234,9 +320,22 @@ export function IsoRoom({
   const SLAB = 10;
 
   return (
-    <div className="relative select-none" style={{ width: geom.width, height: geom.height }}>
-      <svg width={geom.width} height={geom.height} className="absolute inset-0 overflow-visible" style={{ zIndex: 0 }}>
-        <RoomWalls geom={geom} decor={decor} roomNumber={roomNumber} onStatsClick={onStatsClick} />
+    <div
+      className="relative select-none"
+      style={{ width: geom.width, height: geom.height }}
+    >
+      <svg
+        width={geom.width}
+        height={geom.height}
+        className="absolute inset-0 overflow-visible"
+        style={{ zIndex: 0 }}
+      >
+        <RoomWalls
+          geom={geom}
+          decor={decor}
+          roomNumber={roomNumber}
+          onStatsClick={onStatsClick}
+        />
 
         {/* laje (espessura do piso) */}
         <polygon
@@ -281,7 +380,12 @@ export function IsoRoom({
       </svg>
 
       {/* Itens pendurados na parede */}
-      <svg width={geom.width} height={geom.height} className="pointer-events-none absolute inset-0 overflow-visible" style={{ zIndex: 1 }}>
+      <svg
+        width={geom.width}
+        height={geom.height}
+        className="pointer-events-none absolute inset-0 overflow-visible"
+        style={{ zIndex: 1 }}
+      >
         {wallItems.map((f) => {
           const a = wallAnchor(f);
           const def = FURNITURE_SPRITES[f.asset];
@@ -289,8 +393,15 @@ export function IsoRoom({
             <g
               key={f.uid}
               transform={`translate(${a.x} ${a.y}) skewY(${a.skew}) scale(0.76)`}
-              className={editMode ? "pointer-events-auto cursor-pointer" : undefined}
-              style={{ filter: selectedUid === f.uid ? "drop-shadow(0 0 3px #f2b84b) brightness(1.15)" : "drop-shadow(1px 2px 0 rgba(0,0,0,.35))" }}
+              className={
+                editMode ? "pointer-events-auto cursor-pointer" : undefined
+              }
+              style={{
+                filter:
+                  selectedUid === f.uid
+                    ? "drop-shadow(0 0 3px #f2b84b) brightness(1.15)"
+                    : "drop-shadow(1px 2px 0 rgba(0,0,0,.35))",
+              }}
               onClick={() => editMode && onEditFurnitureClick?.(f.uid)}
             >
               <title>{f.name}</title>
@@ -308,7 +419,12 @@ export function IsoRoom({
                   className="pointer-events-auto cursor-pointer fill-mint/15 stroke-mint hover:fill-mint/35"
                   strokeWidth={1.2}
                   strokeDasharray="3 2"
-                  onClick={() => onEditTileClick?.(side === "l" ? -1 : i, side === "l" ? i : -1)}
+                  onClick={() =>
+                    onEditTileClick?.(
+                      side === "l" ? -1 : i,
+                      side === "l" ? i : -1,
+                    )
+                  }
                 />
               ) : null,
             ),
@@ -330,10 +446,18 @@ export function IsoRoom({
             <div
               key={f.uid}
               className="pointer-events-none absolute"
-              style={{ left: c.x + tb.x, top: c.y + tb.y - (tdef.surface ?? 0), zIndex: depth(table.x + tfp.w - 1, table.y + tfp.d - 1, 3) }}
+              style={{
+                left: c.x + tb.x,
+                top: c.y + tb.y - (tdef.surface ?? 0),
+                zIndex: depth(table.x + tfp.w - 1, table.y + tfp.d - 1, 3),
+              }}
               title={f.name}
             >
-              <FurnitureSvg asset={f.asset} glow={selectedUid === f.uid} onClick={() => onFurniture(f)} />
+              <FurnitureSvg
+                asset={f.asset}
+                glow={selectedUid === f.uid}
+                onClick={() => onFurniture(f)}
+              />
             </div>
           );
         }
@@ -347,18 +471,42 @@ export function IsoRoom({
             style={{
               left: center.x + box.x,
               top: center.y + box.y,
-              zIndex: def.layer === "floor" ? 2 : depth(f.x + w - 1, f.y + d - 1),
+              zIndex:
+                def.layer === "floor" ? 2 : depth(f.x + w - 1, f.y + d - 1),
             }}
             title={f.name}
           >
-            <FurnitureSvg asset={f.asset} rot={f.rot} glow={selectedUid === f.uid} trophies={trophies} onClick={() => onFurniture(f)} />
+            <FurnitureSvg
+              asset={f.asset}
+              rot={f.rot}
+              glow={selectedUid === f.uid}
+              trophies={trophies}
+              onClick={() => onFurniture(f)}
+            />
           </div>
         );
       })}
 
-      {host && hostTile && (
-        <AvatarOnTile geom={geom} tile={hostTile} config={host.config} nickname={host.nickname} pose="stand" facing="right" frame={0} lift={0} />
-      )}
+      {others.map((o) => {
+        const seatF = o.seat
+          ? furniture.find((f) => f.uid === o.seat)
+          : undefined;
+        const sitting = !!seatF && !!FURNITURE_SPRITES[seatF.asset]?.sittable;
+        return (
+          <AvatarOnTile
+            key={o.userId}
+            geom={geom}
+            tile={{ x: o.x, y: o.y }}
+            config={o.config}
+            nickname={o.nickname}
+            pose={sitting ? "sit" : o.walking ? "walk" : "stand"}
+            dir={o.dir}
+            frame={frame}
+            lift={sitting ? (FURNITURE_SPRITES[seatF!.asset].seatZ ?? 12) : 0}
+            bubble={bubbles.filter((b) => b.userId === o.userId).slice(-1)[0]}
+          />
+        );
+      })}
 
       <AvatarOnTile
         geom={geom}
@@ -366,10 +514,11 @@ export function IsoRoom({
         config={player.config}
         nickname={player.nickname}
         pose={avatarPose}
-        facing={facing}
+        dir={dir}
         frame={frame}
         lift={seatLift}
         highlight
+        bubble={bubbles.filter((b) => b.userId === playerId).slice(-1)[0]}
       />
 
       <RoomLight geom={geom} mode={decor.light} />
@@ -378,45 +527,103 @@ export function IsoRoom({
   );
 }
 
+/** Direção isométrica a partir do passo no grid. */
+function dirOf(dx: number, dy: number): AvatarDir {
+  if (dx > 0) return "se";
+  if (dx < 0) return "nw";
+  if (dy < 0) return "ne";
+  return "sw";
+}
+
+/** 2 px de tela por pixel de arte: avatar de ~84 px num piso de 64x32. */
+const AV_PX = 2;
+const AV_HEIGHT = AVATAR_H * AV_PX;
+const AV_WIDTH = AVATAR_W * AV_PX;
+const TAG_H = 14;
+
 function AvatarOnTile({
   geom,
   tile,
   config,
   nickname,
   pose,
-  facing,
+  dir,
   frame,
   lift,
   highlight,
+  bubble,
 }: {
   geom: ReturnType<typeof roomGeometry>;
   tile: Point;
   config: AvatarConfig;
   nickname: string;
   pose: AvatarPose;
-  facing: "left" | "right";
+  dir: AvatarDir;
   frame: 0 | 1;
   lift: number;
   highlight?: boolean;
+  bubble?: SpeechBubble;
 }) {
   const c = tileCenter(geom, tile.x, tile.y);
-  const height = 56;
+  // em pé: pés no centro do piso · sentado: quadril na altura do assento
+  const anchorY =
+    pose === "sit" ? AVATAR_HIP_Y * AV_PX + lift : AVATAR_FEET_Y * AV_PX - 4;
+  const box = {
+    left: c.x - 60,
+    top: c.y - anchorY - TAG_H,
+    width: 120,
+    transition: `left ${STEP_MS}ms linear, top ${STEP_MS}ms linear`,
+  };
   return (
-    <div
-      className="pointer-events-none absolute flex flex-col items-center"
-      style={{
-        left: c.x - 30,
-        top: c.y - height - 14 - lift + (pose === "sit" ? 6 : 0),
-        width: 60,
-        zIndex: depth(tile.x, tile.y, 5),
-        transition: `left ${STEP_MS}ms linear, top ${STEP_MS}ms linear`,
-      }}
-    >
-      <span className={`mb-0.5 whitespace-nowrap rounded px-1 font-pixel text-[7px] leading-tight ${highlight ? "bg-gold text-night" : "bg-night/80 text-cream"}`}>
-        @{nickname}
-      </span>
-      <Avatar config={config} pose={pose} frame={frame} facing={facing} size={height} />
-      {pose !== "sit" && <div className="-mt-1.5 h-2.5 w-7 rounded-[50%] bg-black/25 blur-[1px]" />}
-    </div>
+    <>
+      {/* balão numa camada acima de tudo (como no Habbo) */}
+      <div
+        className="pointer-events-none absolute flex flex-col items-center"
+        style={{ ...box, height: 0, zIndex: 100000 }}
+      >
+        {bubble && (
+          <div
+            key={bubble.id}
+            className="absolute bottom-0 mb-1 max-w-[180px] animate-bubble rounded-lg border-2 border-black/70 px-2 py-1 text-center text-[11px] leading-snug text-night shadow-[2px_2px_0_rgba(0,0,0,.45)]"
+            style={{ background: bubble.color }}
+          >
+            <span className="font-pixel">@{nickname}:</span> {bubble.text}
+            <span
+              className="absolute left-1/2 top-full -ml-1.5 h-0 w-0 border-x-[6px] border-t-[6px] border-x-transparent"
+              style={{ borderTopColor: "rgba(0,0,0,.7)" }}
+            />
+          </div>
+        )}
+      </div>
+      <div
+        className="pointer-events-none absolute flex flex-col items-center"
+        style={{ ...box, zIndex: depth(tile.x, tile.y, 5) }}
+      >
+        <span
+          className={`whitespace-nowrap rounded px-1 font-pixel text-[11px] leading-[14px] ${highlight ? "bg-gold text-night" : "bg-night/85 text-cream"}`}
+          style={{ height: TAG_H }}
+        >
+          @{nickname}
+        </span>
+        {pose !== "sit" && (
+          <div
+            className="absolute h-3 w-9 rounded-[50%] bg-black/30 blur-[1px]"
+            style={{ top: TAG_H + AVATAR_FEET_Y * AV_PX - 7, left: 60 - 18 }}
+          />
+        )}
+        <div
+          className="relative"
+          style={{ width: AV_WIDTH, height: AV_HEIGHT }}
+        >
+          <Avatar
+            config={config}
+            pose={pose}
+            frame={frame}
+            dir={dir}
+            size={AV_HEIGHT}
+          />
+        </div>
+      </div>
+    </>
   );
 }

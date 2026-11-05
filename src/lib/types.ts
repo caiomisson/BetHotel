@@ -149,17 +149,21 @@ export interface Debt {
   marked_paid_at: string | null;
   confirmed_at: string | null;
   coins_awarded: number;
+  /** Coins que o credor ganha ao confirmar (só apostas). */
+  creditor_coins: number | null;
   proof_image_url: string | null;
   created_at: string;
 }
 
 export type EventKind = "viagem" | "churrasco" | "festa" | "reveillon" | "carnaval" | "outro";
-export type MemberStatus = "invited" | "accepted" | "declined";
+export type MemberStatus = "invited" | "accepted" | "declined" | "left";
 
 export interface EventMember {
   event_id: string;
   user_id: string;
   status: MemberStatus;
+  coins_awarded?: number;
+  coins_at?: string | null;
 }
 
 export interface EventSplit {

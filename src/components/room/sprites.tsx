@@ -16,9 +16,23 @@ export interface Orientation {
   rot: 0 | 1;
 }
 
+/**
+ * Escala vertical dos móveis em relação ao avatar chibi (≈80px de altura):
+ * assento ≈ cintura sentado, mesa ≈ quadril, encosto ≈ meio do tronco.
+ * Os desenhos são feitos em "z de projeto" e multiplicados aqui.
+ */
+export const Z_SCALE = 1.3;
+/** Contorno escuro de 1px em todos os móveis. */
+const OUTLINE_W = 1;
+
 function pt(o: Orientation, gx: number, gy: number, z: number): string {
   const [ax, ay] = o.rot ? [gy, gx] : [gx, gy];
-  return `${(ax - ay) * HALF_W},${(ax + ay) * HALF_H - z}`;
+  return `${(ax - ay) * HALF_W},${(ax + ay) * HALF_H - z * Z_SCALE}`;
+}
+
+/** Detalhes desenhados direto em coordenadas de tela acompanham a escala vertical. */
+function Raw({ children }: { children: React.ReactNode }) {
+  return <g transform={`scale(1 ${Z_SCALE})`}>{children}</g>;
 }
 
 /** Caixa isométrica com três faces sombreadas, já considerando a rotação. */
@@ -45,12 +59,12 @@ function Box({
 }) {
   // converte para eixos reais antes de escolher as faces visíveis
   const [a0, a1, b0, b1] = o.rot ? [y0, y1, x0, x1] : [x0, x1, y0, y1];
-  const P = (ax: number, ay: number, z: number) => `${(ax - ay) * HALF_W},${(ax + ay) * HALF_H - z}`;
+  const P = (ax: number, ay: number, z: number) => `${(ax - ay) * HALF_W},${(ax + ay) * HALF_H - z * Z_SCALE}`;
   const top = [P(a0, b0, z1), P(a1, b0, z1), P(a1, b1, z1), P(a0, b1, z1)].join(" ");
   const left = [P(a0, b1, z1), P(a1, b1, z1), P(a1, b1, z0), P(a0, b1, z0)].join(" ");
   const right = [P(a1, b0, z1), P(a1, b1, z1), P(a1, b1, z0), P(a1, b0, z0)].join(" ");
   return (
-    <g stroke={shade(color, -0.55)} strokeWidth={0.6} strokeLinejoin="round" opacity={opacity}>
+    <g stroke={shade(color, -0.6)} strokeWidth={OUTLINE_W} strokeLinejoin="round" opacity={opacity}>
       <polygon points={left} fill={color} />
       <polygon points={right} fill={shade(color, -0.22)} />
       <polygon points={top} fill={shade(color, 0.18)} />
@@ -176,6 +190,7 @@ export const FURNITURE_SPRITES: Record<string, SpriteDef> = {
         <Box o={o} x0={-0.17} x1={0.17} y0={-0.17} y1={0.17} z0={0} z1={16} color="#c46a3a" />
         <Box o={o} x0={-0.15} x1={0.15} y0={-0.15} y1={0.15} z0={16} z1={17} color="#5b3a22" />
         {/* yucca: tronco + folhas em leque (pixels) */}
+        <Raw>
         <rect x={-2} y={-36} width={4} height={20} fill="#7a5a36" className="crisp" />
         {[
           [-14, -44, 10, 4],
@@ -189,6 +204,7 @@ export const FURNITURE_SPRITES: Record<string, SpriteDef> = {
         ].map(([x, y, w, h], i) => (
           <rect key={i} x={x} y={y} width={w} height={h} fill={i % 2 ? "#3f9b4f" : "#5fbf62"} className="crisp" />
         ))}
+        </Raw>
       </g>
     ),
   },
@@ -217,7 +233,9 @@ export const FURNITURE_SPRITES: Record<string, SpriteDef> = {
       <g>
         <Box o={o} x0={-0.15} x1={0.15} y0={-0.15} y1={0.15} z0={0} z1={3} color="#3a3a46" />
         <Box o={o} x0={-0.03} x1={0.03} y0={-0.03} y1={0.03} z0={3} z1={48} color="#55556a" />
-        <circle cx={0} cy={-54} r={20} fill="#ffe9a8" opacity={0.18} />
+        <Raw>
+          <circle cx={0} cy={-54} r={20} fill="#ffe9a8" opacity={0.18} />
+        </Raw>
         <Box o={o} x0={-0.2} x1={0.2} y0={-0.2} y1={0.2} z0={46} z1={64} color="#f5d68a" />
       </g>
     ),
@@ -403,6 +421,7 @@ export const FURNITURE_SPRITES: Record<string, SpriteDef> = {
           <Box o={o} x0={-0.36} x1={0.36} y0={-0.32} y1={0.32} z0={0} z1={14} color={WOOD_DARK} />
           <Box o={o} x0={-0.34} x1={0.34} y0={-0.3} y1={-0.24} z0={14} z1={58} color="#5e3c20" />
           <Box o={o} x0={-0.34} x1={0.34} y0={-0.3} y1={0.3} z0={34} z1={36} color={WOOD} />
+          <Raw>
           {slots.slice(0, shown).map(([x, y], i) => (
             <g key={i} className="crisp">
               <rect x={x} y={y} width={7} height={5} fill="#f2b84b" />
@@ -413,6 +432,7 @@ export const FURNITURE_SPRITES: Record<string, SpriteDef> = {
             </g>
           ))}
           {shown === 0 && <rect x={-6} y={-40} width={12} height={2} fill="#3d2816" className="crisp" />}
+          </Raw>
           <Box o={o} x0={-0.34} x1={0.34} y0={-0.3} y1={0.3} z0={14} z1={58} color="#bfe3f2" opacity={0.28} />
           <Box o={o} x0={-0.36} x1={0.36} y0={-0.32} y1={0.32} z0={58} z1={62} color={WOOD_DARK} />
         </g>
@@ -448,6 +468,14 @@ export const FURNITURE_SPRITES: Record<string, SpriteDef> = {
 
 // Itens de conquista entram no mesmo catálogo de sprites
 Object.assign(FURNITURE_SPRITES, PRIZE_SPRITES);
+
+// Alturas de projeto → altura real em tela (ver Z_SCALE). Itens de parede não mudam.
+for (const def of Object.values(FURNITURE_SPRITES)) {
+  if (def.layer === "wall") continue;
+  def.height = Math.round(def.height * Z_SCALE);
+  if (def.seatZ) def.seatZ = Math.round(def.seatZ * Z_SCALE);
+  if (def.surface) def.surface = Math.round(def.surface * Z_SCALE);
+}
 
 /** Tamanho real no grid considerando a rotação. */
 export function footprint(def: SpriteDef, rot: 0 | 1 = 0): { w: number; d: number } {

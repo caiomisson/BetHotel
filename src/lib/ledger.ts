@@ -52,8 +52,7 @@ export function buildLedger(debts: Debt[], bets: Bet[], events: HotelEvent[], my
   const activeBets = bets.filter((b) => (b.status === "awaiting_acceptance" || b.status === "active") && b.bet_participants.some((p) => p.user_id === myId));
   const openEvents = events.filter((e) => e.status === "open" && e.event_members.some((m) => m.user_id === myId && m.status === "accepted"));
   const invites =
-    bets.filter((b) => b.status === "awaiting_acceptance" && b.bet_participants.some((p) => p.user_id === myId && p.invite_status === "pending")).length +
-    events.filter((e) => e.status === "open" && e.event_members.some((m) => m.user_id === myId && m.status === "invited")).length;
+    bets.filter((b) => b.status === "awaiting_acceptance" && b.bet_participants.some((p) => p.user_id === myId && p.invite_status === "pending")).length;
 
   return {
     owedToMe,

@@ -2,6 +2,12 @@ import { shade } from "@/lib/color";
 import { HALF_H, HALF_W } from "@/lib/iso";
 import type { SpriteDef } from "./sprites";
 
+/** Mesmo valor de Z_SCALE em sprites.tsx (evita import circular). */
+const ZS = 1.3;
+function Raw({ children }: { children: React.ReactNode }) {
+  return <g transform={`scale(1 ${ZS})`}>{children}</g>;
+}
+
 /*
  * Itens de conquista (arte original).
  *  - wall: desenhados "de frente" numa caixa ~44x34 centrada em (0,0); o quarto
@@ -15,14 +21,14 @@ const GOLD_D = "#c98f2a";
 const GOLD_L = "#ffe08a";
 
 function isoPt(gx: number, gy: number, z: number) {
-  return `${(gx - gy) * HALF_W},${(gx + gy) * HALF_H - z}`;
+  return `${(gx - gy) * HALF_W},${(gx + gy) * HALF_H - z * ZS}`;
 }
 function Box({ x0, x1, y0, y1, z0, z1, color }: { x0: number; x1: number; y0: number; y1: number; z0: number; z1: number; color: string }) {
   const top = [isoPt(x0, y0, z1), isoPt(x1, y0, z1), isoPt(x1, y1, z1), isoPt(x0, y1, z1)].join(" ");
   const left = [isoPt(x0, y1, z1), isoPt(x1, y1, z1), isoPt(x1, y1, z0), isoPt(x0, y1, z0)].join(" ");
   const right = [isoPt(x1, y0, z1), isoPt(x1, y1, z1), isoPt(x1, y1, z0), isoPt(x1, y0, z0)].join(" ");
   return (
-    <g stroke={shade(color, -0.55)} strokeWidth={0.6} strokeLinejoin="round">
+    <g stroke={shade(color, -0.6)} strokeWidth={1} strokeLinejoin="round">
       <polygon points={left} fill={color} />
       <polygon points={right} fill={shade(color, -0.22)} />
       <polygon points={top} fill={shade(color, 0.18)} />
@@ -70,7 +76,7 @@ export const PRIZE_SPRITES: Record<string, SpriteDef> = {
         <rect x={-18} y={8} width={36} height={5} fill="#2d6fb3" />
         <rect x={-14} y={9} width={6} height={1} fill="#cdeeff" />
         <rect x={4} y={10} width={8} height={1} fill="#cdeeff" />
-        <text x={0} y={-8} textAnchor="middle" fontSize={5} fontWeight={700} fill="#1d2a44" fontFamily="var(--font-pixel)">DESTINO: RIO</text>
+        <text x={0} y={-8} textAnchor="middle" fontSize={5} fill="#1d2a44" fontFamily="var(--font-pixel)">DESTINO: RIO</text>
       </g>
     ),
   },
@@ -85,7 +91,7 @@ export const PRIZE_SPRITES: Record<string, SpriteDef> = {
         <rect x={-15} y={1} width={7} height={9} fill="#c0453c" />
         <rect x={-14} y={-1} width={5} height={2} fill="#8a2f28" />
         <rect x={-14} y={4} width={5} height={1} fill="#8a2f28" />
-        <text x={4} y={11} textAnchor="middle" fontSize={4.5} fontWeight={700} fill="#1d2a44" fontFamily="var(--font-pixel)">MOCHILEIRO</text>
+        <text x={4} y={11} textAnchor="middle" fontSize={4.5} fill="#1d2a44" fontFamily="var(--font-pixel)">MOCHILEIRO</text>
         <text x={4} y={-12} textAnchor="middle" fontSize={4} fill="#3d2816" fontFamily="var(--font-pixel)">DE ELITE</text>
       </g>
     ),
@@ -102,7 +108,7 @@ export const PRIZE_SPRITES: Record<string, SpriteDef> = {
         </g>
         <rect x={-10} y={-1} width={4} height={2} fill={GOLD_D} />
         <rect x={6} y={-1} width={4} height={2} fill={GOLD_D} />
-        <text x={0} y={10} textAnchor="middle" fontSize={5} fontWeight={700} fill={GOLD} fontFamily="var(--font-pixel)">DUELO VENCIDO</text>
+        <text x={0} y={10} textAnchor="middle" fontSize={5} fill={GOLD} fontFamily="var(--font-pixel)">DUELO VENCIDO</text>
       </g>
     ),
   },
@@ -111,8 +117,8 @@ export const PRIZE_SPRITES: Record<string, SpriteDef> = {
     render: () => (
       <g>
         <rect x={-23} y={-12} width={46} height={24} rx={3} fill="#15101f" stroke="#2a2040" strokeWidth={1} />
-        <text x={0} y={3} textAnchor="middle" fontSize={8.5} fontWeight={700} fill="none" stroke="#ff4fd8" strokeWidth={3} opacity={0.35} fontFamily="var(--font-pixel)">CURTIÇÃO</text>
-        <text x={0} y={3} textAnchor="middle" fontSize={8.5} fontWeight={700} fill="#ffd1f5" stroke="#ff4fd8" strokeWidth={0.8} fontFamily="var(--font-pixel)">CURTIÇÃO</text>
+        <text x={0} y={3} textAnchor="middle" fontSize={8.5} fill="none" stroke="#ff4fd8" strokeWidth={3} opacity={0.35} fontFamily="var(--font-pixel)">CURTIÇÃO</text>
+        <text x={0} y={3} textAnchor="middle" fontSize={8.5} fill="#ffd1f5" stroke="#ff4fd8" strokeWidth={0.8} fontFamily="var(--font-pixel)">CURTIÇÃO</text>
         <path d="M-16 7 H16" stroke="#5fd3f5" strokeWidth={1.2} opacity={0.9} />
       </g>
     ),
@@ -122,7 +128,7 @@ export const PRIZE_SPRITES: Record<string, SpriteDef> = {
   photo_abada: {
     sx: 1, sy: 1, height: 22, sittable: false, layer: "table",
     render: () => (
-      <g>
+      <Raw>
         <polygon points="-9,0 9,-4 9,-20 -9,-16" fill={GOLD} stroke={GOLD_D} strokeWidth={0.8} />
         <polygon points="-7,-2 7,-5 7,-18 -7,-15" fill="#7b4fc0" />
         <rect x={-3} y={-14} width={4} height={6} fill="#f2b84b" transform="skewY(-12)" />
@@ -136,18 +142,20 @@ export const PRIZE_SPRITES: Record<string, SpriteDef> = {
           <rect key={i} x={x as number} y={y as number} width={1.5} height={1.5} fill={f as string} />
         ))}
         <text x={0} y={-3} textAnchor="middle" fontSize={3} fill="#fff" fontFamily="var(--font-pixel)" transform="skewY(-12)">ABADÁ</text>
-      </g>
+      </Raw>
     ),
   },
   lamp_cifrao: {
     sx: 1, sy: 1, height: 26, sittable: false, layer: "table",
     render: () => (
       <g>
-        <circle cx={0} cy={-18} r={11} fill="#ffe9a8" opacity={0.18} />
+        <Raw>
+          <circle cx={0} cy={-18} r={11} fill="#ffe9a8" opacity={0.18} />
+        </Raw>
         <Box x0={-0.1} x1={0.1} y0={-0.1} y1={0.1} z0={0} z1={2} color="#2b2b33" />
         <Box x0={-0.02} x1={0.02} y0={-0.02} y1={0.02} z0={2} z1={12} color="#55556a" />
         <Box x0={-0.14} x1={0.14} y0={-0.14} y1={0.14} z0={11} z1={22} color={GOLD} />
-        <text x={0} y={-12} textAnchor="middle" fontSize={7} fontWeight={700} fill="#3d2816" fontFamily="var(--font-pixel)">$</text>
+        <text x={0} y={-12 * ZS} textAnchor="middle" fontSize={8} fill="#3d2816" fontFamily="var(--font-pixel)">$</text>
       </g>
     ),
   },
@@ -156,7 +164,7 @@ export const PRIZE_SPRITES: Record<string, SpriteDef> = {
     render: () => (
       <g>
         <Box x0={-0.16} x1={0.16} y0={-0.1} y1={0.1} z0={0} z1={3} color="#1d1d24" />
-        <g transform="translate(0 -4)">
+        <g transform={`translate(0 ${-4 * ZS})`}>
           <Bull s={0.9} />
         </g>
       </g>
@@ -171,6 +179,7 @@ export const PRIZE_SPRITES: Record<string, SpriteDef> = {
         <Box x0={-0.22} x1={0.22} y0={-0.22} y1={0.22} z0={0} z1={22} color="#2b2b33" />
         <Box x0={-0.06} x1={0.06} y0={-0.06} y1={0.06} z0={22} z1={44} color={GOLD} />
         <Box x0={-0.03} x1={0.03} y0={-0.03} y1={0.03} z0={44} z1={54} color={GOLD_D} />
+        <Raw>
         <rect x={-1.5} y={-58} width={3} height={4} fill="#c0453c" className="crisp" />
         <rect x={-2} y={-40} width={4} height={6} fill="#f3efe6" className="crisp" />
         <g className="crisp">
@@ -182,6 +191,7 @@ export const PRIZE_SPRITES: Record<string, SpriteDef> = {
           <rect x={7} y={-54} width={1.5} height={1.5} fill={GOLD_L} />
           <rect x={4} y={-46} width={1} height={1} fill="#fff" />
         </g>
+        </Raw>
       </g>
     ),
   },
@@ -191,10 +201,10 @@ export const PRIZE_SPRITES: Record<string, SpriteDef> = {
       <g>
         <Box x0={-0.32} x1={0.32} y0={-0.24} y1={0.24} z0={0} z1={16} color="#3a2a19" />
         <Box x0={-0.3} x1={0.3} y0={-0.22} y1={0.22} z0={16} z1={18} color="#6e4a2a" />
-        <g transform="translate(0 -18)">
+        <g transform={`translate(0 ${-18 * ZS})`}>
           <Bull s={2} />
         </g>
-        <rect x={-12} y={-9} width={24} height={2} fill="#ef6b5b" opacity={0.6} className="crisp" />
+        <rect x={-12} y={-9 * ZS} width={24} height={2} fill="#ef6b5b" opacity={0.6} className="crisp" />
       </g>
     ),
   },
@@ -220,7 +230,7 @@ export const PRIZE_SPRITES: Record<string, SpriteDef> = {
         ))}
         <g transform="matrix(0.89,0.45,-0.89,0.45,0,0)">
           <rect x={-15} y={-3.5} width={30} height={7} fill="#f2b84b" />
-          <text x={0} y={1.6} textAnchor="middle" fontSize={3.6} fontWeight={700} fill="#1d1d24" fontFamily="var(--font-pixel)">BEM-VINDO À ZEBRA</text>
+          <text x={0} y={1.6} textAnchor="middle" fontSize={4} fill="#1d1d24" fontFamily="var(--font-pixel)">BEM-VINDO À ZEBRA</text>
         </g>
       </g>
     ),

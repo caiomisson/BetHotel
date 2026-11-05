@@ -12,11 +12,24 @@ interface GuestPickerProps {
 }
 
 /** Busca de hóspedes por @nick com chips de selecionados. */
-export function GuestPicker({ guests, selected, onChange, single, placeholder }: GuestPickerProps) {
+export function GuestPicker({
+  guests,
+  selected,
+  onChange,
+  single,
+  placeholder,
+}: GuestPickerProps) {
   const [q, setQ] = useState("");
   const term = q.trim().toLowerCase().replace(/^@/, "");
   const matches = term
-    ? guests.filter((g) => !selected.includes(g.id) && (g.nickname.includes(term) || g.full_name.toLowerCase().includes(term))).slice(0, 5)
+    ? guests
+        .filter(
+          (g) =>
+            !selected.includes(g.id) &&
+            (g.nickname.includes(term) ||
+              g.full_name.toLowerCase().includes(term)),
+        )
+        .slice(0, 5)
     : [];
   const byId = new Map(guests.map((g) => [g.id, g]));
 
@@ -30,7 +43,10 @@ export function GuestPicker({ guests, selected, onChange, single, placeholder }:
       {selected.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {selected.map((id) => (
-            <span key={id} className="inline-flex items-center gap-1 rounded bg-panel2 px-2 py-1 text-sm">
+            <span
+              key={id}
+              className="inline-flex items-center gap-1 rounded bg-panel2 px-2 py-1 text-sm"
+            >
               @{byId.get(id)?.nickname}
               <button
                 type="button"
@@ -46,13 +62,23 @@ export function GuestPicker({ guests, selected, onChange, single, placeholder }:
       )}
       {(!single || selected.length === 0) && (
         <div className="relative">
-          <input className="pixel-input" placeholder={placeholder ?? "Buscar @nick"} value={q} onChange={(e) => setQ(e.target.value)} />
+          <input
+            className="pixel-input"
+            placeholder={placeholder ?? "Buscar @nick"}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
           {matches.length > 0 && (
             <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded border-2 border-line bg-panel2">
               {matches.map((g) => (
                 <li key={g.id}>
-                  <button type="button" className="w-full px-3 py-1.5 text-left text-sm hover:bg-panel" onClick={() => add(g.id)}>
-                    @{g.nickname} <span className="text-xs text-cream/60">{g.full_name}</span>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-panel"
+                    onClick={() => add(g.id)}
+                  >
+                    @{g.nickname}{" "}
+                    <span className="text-xs text-cream/60">{g.full_name}</span>
                   </button>
                 </li>
               ))}

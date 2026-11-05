@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "react-qr-code";
 import { Modal } from "@/components/ui/Modal";
-import { PROOF_ACCEPT, PROOF_BUCKET, PROOF_MAX_BYTES, PROOF_TTL_DAYS } from "@/lib/constants";
+import {
+  PROOF_ACCEPT,
+  PROOF_BUCKET,
+  PROOF_MAX_BYTES,
+  PROOF_TTL_DAYS,
+} from "@/lib/constants";
 import { errorMessage, formatBRL } from "@/lib/format";
 import { buildPixPayload } from "@/lib/pix";
 import { createClient } from "@/lib/supabase/client";
@@ -21,7 +26,13 @@ interface PixPaymentModalProps {
  * "Gateway" Pix visual: monta QR Code e Copia-e-Cola direto para a chave do
  * credor. O pagamento acontece no app do banco; aqui só registramos o aviso.
  */
-export function PixPaymentModal({ open, onClose, onPaid, debt, myId }: PixPaymentModalProps) {
+export function PixPaymentModal({
+  open,
+  onClose,
+  onPaid,
+  debt,
+  myId,
+}: PixPaymentModalProps) {
   const [creditor, setCreditor] = useState<ContactInfo | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [copied, setCopied] = useState(false);
@@ -33,7 +44,9 @@ export function PixPaymentModal({ open, onClose, onPaid, debt, myId }: PixPaymen
     setError(null);
     createClient()
       .rpc("get_contact_info", { p_user: debt.creditor_id })
-      .then(({ data }) => setCreditor(((data as ContactInfo[] | null) ?? [])[0] ?? null));
+      .then(({ data }) =>
+        setCreditor(((data as ContactInfo[] | null) ?? [])[0] ?? null),
+      );
   }, [open, debt.creditor_id]);
 
   const payload = useMemo(() => {
@@ -51,7 +64,9 @@ export function PixPaymentModal({ open, onClose, onPaid, debt, myId }: PixPaymen
     const f = e.target.files?.[0] ?? null;
     setError(null);
     if (f && f.size > PROOF_MAX_BYTES) {
-      setError("O arquivo passa de 4 MB. Envie um print menor ou comprima o arquivo.");
+      setError(
+        "O arquivo passa de 4 MB. Envie um print menor ou comprima o arquivo.",
+      );
       e.target.value = "";
       return setFile(null);
     }
@@ -65,19 +80,26 @@ export function PixPaymentModal({ open, onClose, onPaid, debt, myId }: PixPaymen
     let proofPath: string | null = null;
 
     if (file) {
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const ext = (file.name.split(".").pop() || "jpg")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
       proofPath = `${myId}/${debt.id}-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from(PROOF_BUCKET).upload(proofPath, file, {
-        contentType: file.type,
-        upsert: false,
-      });
+      const { error: upErr } = await supabase.storage
+        .from(PROOF_BUCKET)
+        .upload(proofPath, file, {
+          contentType: file.type,
+          upsert: false,
+        });
       if (upErr) {
         setSaving(false);
         return setError(`Falha no upload: ${upErr.message}`);
       }
     }
 
-    const { error } = await supabase.rpc("mark_paid", { p_debt: debt.id, p_proof_path: proofPath });
+    const { error } = await supabase.rpc("mark_paid", {
+      p_debt: debt.id,
+      p_proof_path: proofPath,
+    });
     setSaving(false);
     if (error) return setError(errorMessage(error));
     setFile(null);
@@ -87,11 +109,17 @@ export function PixPaymentModal({ open, onClose, onPaid, debt, myId }: PixPaymen
   const isPrize = !debt.amount;
 
   return (
-    <Modal open={open} onClose={onClose} title={isPrize ? "Pagar prenda" : "Pagar via Pix"}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={isPrize ? "Pagar prenda" : "Pagar via Pix"}
+    >
       <div className="space-y-4">
         <div className="rounded bg-night/50 p-3 text-sm">
           <div className="text-cream/60">{debt.title}</div>
-          <div className="text-lg font-semibold text-gold">{isPrize ? "Prenda" : formatBRL(debt.amount)}</div>
+          <div className="text-lg font-semibold text-gold">
+            {isPrize ? "Prenda" : formatBRL(debt.amount)}
+          </div>
           {creditor && (
             <div className="text-cream/80">
               para <b>@{creditor.nickname}</b> ({creditor.full_name})
@@ -100,7 +128,10 @@ export function PixPaymentModal({ open, onClose, onPaid, debt, myId }: PixPaymen
         </div>
 
         {!isPrize && creditor && !creditor.pix_key && (
-          <p className="text-sm text-coral">@{creditor.nickname} ainda não cadastrou uma chave Pix. Combine o pagamento direto com ele(a).</p>
+          <p className="text-sm text-coral">
+            @{creditor.nickname} ainda não cadastrou uma chave Pix. Combine o
+            pagamento direto com ele(a).
+          </p>
         )}
 
         {payload && creditor && (
@@ -111,7 +142,12 @@ export function PixPaymentModal({ open, onClose, onPaid, debt, myId }: PixPaymen
             <div className="w-full">
               <label className="pixel-label">Pix Copia e Cola</label>
               <div className="flex gap-2">
-                <input readOnly className="pixel-input font-mono text-xs" value={payload} onFocus={(e) => e.target.select()} />
+                <input
+                  readOnly
+                  className="pixel-input font-mono text-xs"
+                  value={payload}
+                  onFocus={(e) => e.target.select()}
+                />
                 <button
                   type="button"
                   className="pixel-btn"
@@ -125,7 +161,8 @@ export function PixPaymentModal({ open, onClose, onPaid, debt, myId }: PixPaymen
                 </button>
               </div>
               <p className="mt-1 text-xs text-cream/60">
-                Chave: {creditor.pix_key}. O BetHotel não toca no dinheiro — o Pix vai direto para a conta de quem recebe.
+                Chave: {creditor.pix_key}. O BetHotel não toca no dinheiro — o
+                Pix vai direto para a conta de quem recebe.
               </p>
             </div>
           </div>
@@ -133,15 +170,30 @@ export function PixPaymentModal({ open, onClose, onPaid, debt, myId }: PixPaymen
 
         <div>
           <label className="pixel-label" htmlFor="proof">
-            {isPrize ? "Foto da prenda paga (opcional)" : "Comprovante (opcional)"}
+            {isPrize
+              ? "Foto da prenda paga (opcional)"
+              : "Comprovante (opcional)"}
           </label>
-          <input id="proof" type="file" accept={PROOF_ACCEPT} className="pixel-input file:mr-3 file:rounded file:border-0 file:bg-panel2 file:px-2 file:py-1 file:text-cream" onChange={onFile} />
-          <p className="mt-1 text-xs text-cream/60">PNG, JPG, WEBP ou PDF, até 4 MB. Apagado automaticamente após {PROOF_TTL_DAYS} dias.</p>
+          <input
+            id="proof"
+            type="file"
+            accept={PROOF_ACCEPT}
+            className="pixel-input file:mr-3 file:rounded file:border-0 file:bg-panel2 file:px-2 file:py-1 file:text-cream"
+            onChange={onFile}
+          />
+          <p className="mt-1 text-xs text-cream/60">
+            PNG, JPG, WEBP ou PDF, até 4 MB. Apagado automaticamente após{" "}
+            {PROOF_TTL_DAYS} dias.
+          </p>
         </div>
 
         {error && <p className="text-sm text-coral">{error}</p>}
-        <button className="pixel-btn pixel-btn-mint w-full" onClick={confirmPaid} disabled={saving}>
-          {saving ? "Enviando…" : "Quitar · +10 (avisar o credor)"}
+        <button
+          className="pixel-btn pixel-btn-mint w-full"
+          onClick={confirmPaid}
+          disabled={saving}
+        >
+          {saving ? "Enviando…" : "Quitar (avisar o credor)"}
         </button>
       </div>
     </Modal>
